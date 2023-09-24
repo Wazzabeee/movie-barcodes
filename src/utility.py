@@ -18,7 +18,7 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args) -> None:
             filename_parts.append(args.barcode_type)
 
         if args.workers:
-            filename_parts.append(f"workers_{args.workers}")
+            filename_parts.append(f"workers_{str(args.workers)}")
 
         destination_name = "_".join(filename_parts) + ".png"
         destination_path = os.path.join("barcodes", destination_name)

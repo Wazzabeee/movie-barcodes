@@ -18,6 +18,16 @@ class TestColorExtraction(unittest.TestCase):
         # Assert the expected result
         self.assertEqual(dominant_color.tolist(), [127.5, 127.5, 127.5])
 
+    def test_get_dominant_color_kmeans(self):
+        frame = np.array([
+            [[255, 0, 0], [0, 255, 0]],
+            [[0, 0, 255], [255, 255, 255]]
+        ], dtype=np.uint8)
+
+        dominant_color = color_extraction.get_dominant_color_kmeans(frame)
+
+        self.assertIsInstance(dominant_color, np.ndarray)
+        self.assertEqual(dominant_color.shape, (3,))  # Should be a 3-element array representing a color
 
 if __name__ == '__main__':
     unittest.main()

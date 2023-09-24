@@ -1,8 +1,9 @@
+from multiprocessing import Pool
+from typing import Callable
+
 import cv2
-from typing import Callable, Optional
-from tqdm import tqdm
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 
 CHUNK_SIZE = 10  # Adjust this based on the desired chunk size
 
@@ -23,43 +24,48 @@ def process_frame_chunk(chunk_frames, color_extractor):
     return colors
 
 
-def extract_colors(video: cv2.VideoCapture, frame_count: int, color_extractor: Callable,
-                   workers: Optional[int] = None, frame_skip: int = 1) -> list:
+def process_frames(start_frame, end_frame, video_path, color_extractor):
+    cap = cv2.VideoCapture(video_path)
+    colors = []
+    for i in range(start_frame, end_frame + 1):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+        ret, frame = cap.read()
+        print("reading" + str(i))
+        if not ret:
+            break
+        color = color_extractor(frame)
+        colors.append(color)
+    cap.release()
+    print("releasing")
+    return colors
+
+
+def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, workers=1):
+    frames_per_worker = frame_count // workers
+
+    with Pool(workers) as pool:
+        args = [(i * frames_per_worker, (i + 1) * frames_per_worker - 1, video_path, color_extractor) for i in range(workers)]
+        if frame_count % workers != 0:
+            args[-1] = (args[-1][0], frame_count - 1, video_path, color_extractor)
+
+        print(args)
+        results = pool.starmap(process_frames, args)
+
+    # Concatenate results from all workers
+    final_colors = [color for colors in results for color in colors]
+
+    return final_colors
+
+
+def extract_colors(video: cv2.VideoCapture, frame_count: int, color_extractor: Callable, frame_skip: int = 1) -> list:
     colors = []
 
-    if workers:  # Use parallel processing
-
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = []
-
-            # Load and submit chunks for processing
-            for _ in range(0, frame_count, CHUNK_SIZE * frame_skip):
-                chunk_frames = []
-                for _ in range(CHUNK_SIZE):
-                    ret, frame = video.read()
-                    if not ret:
-                        break
-
-                    # Only process the first frame in the chunk and skip the rest based on frame_skip
-                    if _ % frame_skip == 0:
-                        chunk_frames.append(frame)
-                    else:
-                        continue
-
-                if chunk_frames:
-                    futures.append(executor.submit(process_frame_chunk, chunk_frames, color_extractor))
-
-            # Gather the results
-            for future in tqdm(as_completed(futures), total=len(futures)):
-                colors.extend(future.result())
-
-    else:  # Use sequential processing
-        for _ in tqdm(range(0, frame_count, frame_skip)):
-            ret, frame = video.read()
-            if ret:
-                # frame = crop_black_borders(frame)
-                dominant_color = color_extractor(frame)
-                colors.append(dominant_color)
+    for _ in tqdm(range(0, frame_count, frame_skip)):
+        ret, frame = video.read()
+        if ret:
+            # frame = crop_black_borders(frame)
+            dominant_color = color_extractor(frame)
+            colors.append(dominant_color)
 
     return colors
 

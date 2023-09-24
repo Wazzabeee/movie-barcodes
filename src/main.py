@@ -4,7 +4,7 @@ import os
 from barcode_generation import generate_circular_barcode, generate_barcode
 
 from utility import save_barcode_image, get_dominant_color_function
-from video_processing import load_video, extract_colors
+from video_processing import load_video, extract_colors, parallel_extract_colors
 
 MAX_PROCESSES = 4  # You can adjust this based on your machine's capacity.
 
@@ -14,7 +14,11 @@ def generate_and_save_barcode(args, dominant_color_function, method: str):
 
     # Adjust the frame_count for the barcode width
     adjusted_frame_count = frame_count // args.frame_skip
-    colors = extract_colors(args.input_video_path, frame_count, dominant_color_function, args.workers, args.frame_skip)
+
+    if args.workers is not None:
+        colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, args.workers)
+    else:
+        colors = extract_colors(video, frame_count, dominant_color_function)
     # colors = extract_colors(video, frame_count, dominant_color_function, args.workers, args.frame_skip)
 
     # Generate the appropriate type of barcode

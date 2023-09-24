@@ -25,7 +25,11 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args) -> None:
     else:
         destination_path = args.destination_path
 
-    image = Image.fromarray(barcode, 'RGBA')  # Specify 'RGBA' mode for image with alpha channel
+    if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
+        image = Image.fromarray(barcode, 'RGBA')
+    else:  # If the image doesn't have an alpha channel (RGB)
+        image = Image.fromarray(barcode, 'RGB')
+
     image.save(destination_path)
 
 

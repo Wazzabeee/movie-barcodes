@@ -36,7 +36,7 @@ def generate_circular_barcode(colors: list, img_size: int) -> np.ndarray:
 
 
 def generate_barcode(colors: list, frame_height: int, frame_count: int) -> np.ndarray:
-    barcode = np.zeros((frame_height, frame_count, 3))
+    barcode = np.zeros((frame_height, frame_count, 3), dtype=np.uint8)
     for i, color in enumerate(colors):
         barcode[:, i] = color
     return barcode

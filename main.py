@@ -22,8 +22,6 @@ def main(args):
     # Adjust the frame_count for the barcode width
     adjusted_frame_count = frame_count // args.frame_skip
 
-    print(colors)
-
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
         barcode = generate_circular_barcode(colors,
@@ -31,8 +29,6 @@ def main(args):
         # barcodes
     else:
         barcode = generate_barcode(colors, frame_height, adjusted_frame_count)
-
-    print(barcode)
 
     base_name = os.path.basename(args.input_video_path)
     file_name_without_extension = os.path.splitext(base_name)[0]

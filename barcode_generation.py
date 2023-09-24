@@ -10,9 +10,11 @@ def generate_circular_barcode(colors: list, img_size: int) -> np.ndarray:
     :param img_size: The size of the square image (both width and height).
     :return: Circular barcode image.
     """
-    scale_factor = 30  # Increase this for higher quality
+    scale_factor = 10  # Increase this for higher quality
     high_res_img_size = img_size * scale_factor
-    barcode_high_res = np.ones((high_res_img_size, high_res_img_size, 3), dtype=np.uint8) * 255
+
+    # Create an image with an alpha channel (4th channel)
+    barcode_high_res = np.zeros((high_res_img_size, high_res_img_size, 4), dtype=np.uint8)
     center = high_res_img_size // 2
 
     # Compute the radius increment
@@ -22,10 +24,14 @@ def generate_circular_barcode(colors: list, img_size: int) -> np.ndarray:
 
     for idx, color in enumerate(colors):
         radius = (idx + 1) * radius_increment
-        cv2.circle(barcode_high_res, (center, center), int(radius), tuple(map(int, color[::-1])), thickness=scale_factor)
+        cv2.circle(barcode_high_res,
+                   (center, center),
+                   int(radius),
+                   tuple(map(int, color[::-1])) + (255,),
+                   thickness=scale_factor)
 
     # Down-sample to the desired resolution with antialiasing
-    barcode = cv2.resize(barcode_high_res, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
+    barcode = cv2.resize(barcode_high_res, (img_size, img_size), interpolation=cv2.INTER_AREA)
     return barcode
 
 

@@ -24,23 +24,22 @@ def process_frame_chunk(chunk_frames, color_extractor):
     return colors
 
 
-def process_frames(start_frame, end_frame, video_path, color_extractor):
+def process_frames(start_frame: int, end_frame: int, video_path: str, color_extractor: Callable) -> list:
     cap = cv2.VideoCapture(video_path)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     colors = []
     for i in range(start_frame, end_frame + 1):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
         ret, frame = cap.read()
-        print("reading" + str(i))
         if not ret:
             break
         color = color_extractor(frame)
         colors.append(color)
     cap.release()
-    print("releasing")
+
     return colors
 
 
-def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, workers=1):
+def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, workers=1) -> list:
     frames_per_worker = frame_count // workers
 
     with Pool(workers) as pool:
@@ -48,7 +47,6 @@ def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, 
         if frame_count % workers != 0:
             args[-1] = (args[-1][0], frame_count - 1, video_path, color_extractor)
 
-        print(args)
         results = pool.starmap(process_frames, args)
 
     # Concatenate results from all workers

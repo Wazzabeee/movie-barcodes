@@ -19,6 +19,15 @@ def get_dominant_color_function(method: str):
         raise ValueError(f"Invalid method: {method}")
 
 
+def format_time(seconds):
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+    else:
+        return f"{int(minutes)}m {int(seconds)}s"
+
+
 def save_barcode_image(barcode: np.ndarray, base_name: str, args, method: str) -> None:
     # If destination_path isn't specified, construct one based on the video's name
     if not args.destination_path:

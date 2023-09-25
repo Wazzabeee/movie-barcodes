@@ -1,7 +1,9 @@
 from multiprocessing import Pool
 from typing import Callable
+from utility import format_time
 
 import cv2
+import time
 import numpy as np
 from tqdm import tqdm
 
@@ -27,13 +29,27 @@ def process_frame_chunk(chunk_frames, color_extractor):
 def process_frames(start_frame: int, end_frame: int, video_path: str, color_extractor: Callable) -> list:
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
     colors = []
+    start_time = time.time()
+    print_frequency = 1000  # Adjust this value to your liking
+
     for i in range(start_frame, end_frame + 1):
         ret, frame = cap.read()
         if not ret:
             break
         color = color_extractor(frame)
         colors.append(color)
+
+        if (i - start_frame + 1) % print_frequency == 0:
+            elapsed_time = time.time() - start_time
+            frames_left = end_frame - i
+            time_per_frame = elapsed_time / (i - start_frame + 1)
+            estimated_time_left = frames_left * time_per_frame
+            progress_percentage = ((i - start_frame + 1) / (end_frame - start_frame + 1)) * 100
+            formatted_time_left = format_time(estimated_time_left)
+            print(f"Progress: {progress_percentage:.2f}% - Estimated time remaining: {formatted_time_left}")
+
     cap.release()
 
     return colors

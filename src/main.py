@@ -1,16 +1,26 @@
 import argparse
 import os
+import logging
+import time
+import cv2
 
 from barcode_generation import generate_circular_barcode, generate_barcode
 
-from utility import save_barcode_image, get_dominant_color_function
+from utility import save_barcode_image, get_dominant_color_function, format_time
 from video_processing import load_video, extract_colors, parallel_extract_colors
 
-MAX_PROCESSES = 4  # You can adjust this based on your machine's capacity.
+MAX_PROCESSES = 8  # You can adjust this based on your machine's capacity.
 
 
 def generate_and_save_barcode(args, dominant_color_function, method: str):
+    start_time = time.time()
     video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
+
+    # Get Video Properties
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = video.get(cv2.CAP_PROP_FPS)
+    video_duration = total_frames / fps if fps > 0 else 0  # in seconds
+    video_size = os.path.getsize(args.input_video_path)  # in bytes
 
     # Adjust the frame_count for the barcode width
     adjusted_frame_count = frame_count // args.frame_skip
@@ -19,7 +29,6 @@ def generate_and_save_barcode(args, dominant_color_function, method: str):
         colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, args.workers)
     else:
         colors = extract_colors(video, frame_count, dominant_color_function)
-    # colors = extract_colors(video, frame_count, dominant_color_function, args.workers, args.frame_skip)
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
@@ -32,6 +41,17 @@ def generate_and_save_barcode(args, dominant_color_function, method: str):
     base_name = os.path.basename(args.input_video_path)
     file_name_without_extension = os.path.splitext(base_name)[0]
     save_barcode_image(barcode, file_name_without_extension, args, method)
+
+    # Calculate processing time
+    end_time = time.time()
+    processing_time = end_time - start_time
+
+    # Log the information
+    logging.info(f"Processed File: {file_name_without_extension}")
+    logging.info(f"Number of Frames: {frame_count}")
+    logging.info(f"Video Duration: {format_time(video_duration)}")
+    logging.info(f"Video Size: {video_size / (1024 * 1024):.2f} MB")
+    logging.info(f"Processing Time: {format_time(processing_time)}")
 
     video.release()
 
@@ -53,6 +73,9 @@ def main(args):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(filename=os.path.join('..', 'logs.txt'), level=logging.INFO, format='%(asctime)s - %(message)s')
+    logging.info("\n" + "="*40 + " NEW RUN " + "="*40 + "\n")
+
     parser = argparse.ArgumentParser(description='Generate a color barcode from a video file.')
     parser.add_argument('input_video_path',
                         type=str,

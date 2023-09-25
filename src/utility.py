@@ -29,9 +29,12 @@ def format_time(seconds):
 
 
 def save_barcode_image(barcode: np.ndarray, base_name: str, args, method: str) -> None:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)  # Go up one directory to get to the project root
     # If destination_path isn't specified, construct one based on the video's name
     if not args.destination_path:
-        ensure_directory("barcodes")
+        barcode_dir = os.path.join(project_root, "barcodes")
+        ensure_directory(barcode_dir)
 
         # Constructing the filename, always including the method
         filename_parts = [base_name, method, args.barcode_type]
@@ -40,11 +43,11 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args, method: str) -
             filename_parts.append(f"workers_{str(args.workers)}")
 
         destination_name = "_".join(filename_parts) + ".png"
-        destination_path = os.path.join("barcodes", destination_name)
+        destination_path = os.path.join(barcode_dir, destination_name)
     else:
         # In case a destination_path is provided, consider appending the method
         # or managing as per your requirement
-        destination_path = args.destination_path
+        destination_path = os.path.join(project_root, args.destination_path)
 
     if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
         image = Image.fromarray(barcode, 'RGBA')

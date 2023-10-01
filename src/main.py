@@ -114,6 +114,12 @@ if __name__ == "__main__":
                         type=int,
                         default=None,
                         help='Width of the output image. If not provided, the width will be the same as the video')
+    parser.add_argument('--output_name',
+                        type=str,
+                        nargs='?',
+                        help='Custom name for the output barcode image. If not provided, a name will be automatically '
+                             'generated.',
+                        default=None)
     parser.add_argument('--all_methods',
                         type=bool,
                         default=False,

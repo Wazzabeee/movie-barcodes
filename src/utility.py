@@ -116,13 +116,15 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args, method: str) -
         barcode_dir = os.path.join(project_root, "barcodes")
         ensure_directory(barcode_dir)
 
-        # Constructing the filename, always including the method
-        filename_parts = [base_name, method, args.barcode_type]
+        # If an output_name is provided by the user
+        if args.output_name:
+            destination_name = args.output_name + '.png'
+        else:
+            filename_parts = [base_name, method, args.barcode_type]
+            if args.workers:
+                filename_parts.append(f"workers_{str(args.workers)}")
+            destination_name = "_".join(filename_parts) + ".png"
 
-        if args.workers:
-            filename_parts.append(f"workers_{str(args.workers)}")
-
-        destination_name = "_".join(filename_parts) + ".png"
         destination_path = os.path.join(barcode_dir, destination_name)
     else:
         # In case a destination_path is provided, consider appending the method

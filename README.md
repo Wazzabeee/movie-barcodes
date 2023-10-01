@@ -22,7 +22,7 @@ Designed with performance in mind, the application supports both sequential and 
 # Installation
 ```bash
 # Clone this repository
-git clone https://github.com/Wazzabeee/movie_color_barcode
+git clone https://github.com/Wazzabeee/Movie-Color-Barcodes
 
 # Go into the repository
 cd movie_color_barcode

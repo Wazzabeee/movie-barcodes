@@ -43,6 +43,9 @@ def parallel_extract_colors(video_path: str, frame_count: int, target_frames: in
     :param int workers: Number of parallel workers.
     :return: List of dominant colors for the frames in the video.
     """
+    if target_frames is None:
+        target_frames = frame_count
+
     frames_per_worker = frame_count // workers
     target_frames_per_worker = target_frames // workers
 

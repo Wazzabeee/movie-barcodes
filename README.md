@@ -3,7 +3,6 @@
 
 ### Todo
 
-- [ ] Optimize Parellel Processing using cap.grap() just like sequential version
 - [ ] Optimize K-means to speed up the process
 - [ ] Add small GUI with all options available
 - [ ] Add option to modify the barcode's height (current is frame's height)
@@ -17,3 +16,4 @@
 - [X] Define default behavior as maximum cores for faster generation
 - [X] Provide more feedback to the user on any errors that occur
 - [X] Add custom naming option through CLI
+- [X] Optimize Parellel Processing using cap.grap() just like sequential version

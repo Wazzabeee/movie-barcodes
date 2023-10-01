@@ -3,12 +3,11 @@ import os
 import cv2
 from PIL import Image
 from typing import Callable
-from main import MAX_PROCESSES, MIN_FRAME_COUNT
 
 from color_extraction import *
 
 
-def validate_args(args, frame_count: int) -> None:
+def validate_args(args, frame_count: int, MAX_PROCESSES: int, MIN_FRAME_COUNT: int) -> None:
     """
     Validate command-line arguments for logical errors.
     """

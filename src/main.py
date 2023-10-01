@@ -24,14 +24,14 @@ def generate_and_save_barcode(args, dominant_color_function: Callable, method: s
     if args.workers is not None:
         if args.workers == 1:
             # If the user explicitly sets 'workers' to 1, use sequential processing
-            colors = extract_colors(video, frame_count, args.width, dominant_color_function)
+            colors = extract_colors(args.input_video_path, 0, frame_count - 1, args.width, dominant_color_function)
         else:
             # Perform parallel processing with the user-specified number of workers
-            colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function,
+            colors = parallel_extract_colors(args.input_video_path, frame_count, args.width, dominant_color_function,
                                              args.workers)
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
-        colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, MAX_PROCESSES)
+        colors = parallel_extract_colors(args.input_video_path, frame_count, args.width, dominant_color_function, MAX_PROCESSES)
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
@@ -64,7 +64,7 @@ def main(args) -> None:
     _, frame_count, _, _ = load_video(args.input_video_path)
 
     # Check if the arguments are valid
-    validate_args(args, frame_count)
+    validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
 
     # Get a list of all available methods
     methods = ['avg', 'hsv', 'bgr', 'kmeans']

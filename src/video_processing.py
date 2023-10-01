@@ -1,9 +1,7 @@
 from multiprocessing import Pool
 from typing import Callable, List
-from utility import format_time
 
 import cv2
-import time
 import numpy as np
 from tqdm import tqdm
 
@@ -33,62 +31,31 @@ def load_video(video_path: str) -> tuple:
     return video, frame_count, frame_width, frame_height
 
 
-def process_frames(start_frame: int, end_frame: int, video_path: str, color_extractor: Callable) -> list:
-    """
-    Process frames in a range to extract dominant colors.
-
-    :param int start_frame: The index of the first frame to process.
-    :param int end_frame: The index of the last frame to process.
-    :param str video_path: The path to the video file.
-    :param Callable color_extractor: A function to extract the dominant color from a frame.
-    :return: List of dominant colors for the frames in the range.
-    """
-    cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
-    colors = []
-    start_time = time.time()
-    print_frequency = 1000  # Adjust this value to your liking
-
-    for i in range(start_frame, end_frame + 1):
-        ret, frame = cap.read()
-        if not ret:
-            break
-        color = color_extractor(frame)
-        colors.append(color)
-
-        if (i - start_frame + 1) % print_frequency == 0:
-            elapsed_time = time.time() - start_time
-            frames_left = end_frame - i
-            time_per_frame = elapsed_time / (i - start_frame + 1)
-            estimated_time_left = frames_left * time_per_frame
-            progress_percentage = ((i - start_frame + 1) / (end_frame - start_frame + 1)) * 100
-            formatted_time_left = format_time(estimated_time_left)
-            print(f"Progress: {progress_percentage:.2f}% - Estimated time remaining: {formatted_time_left}")
-
-    cap.release()
-
-    return colors
-
-
-def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, workers=1) -> list:
+def parallel_extract_colors(video_path: str, frame_count: int, target_frames: int, color_extractor,
+                            workers: int) -> list:
     """
     Extract dominant colors from frames in a video file using parallel processing.
 
     :param str video_path: The path to the video file.
     :param int frame_count: The total number of frames in the video.
+    :param int target_frames: The total number of frames to sample.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :param int workers: Number of parallel workers.
     :return: List of dominant colors for the frames in the video.
     """
     frames_per_worker = frame_count // workers
+    target_frames_per_worker = target_frames // workers
 
     with Pool(workers) as pool:
-        args = [(i * frames_per_worker, (i + 1) * frames_per_worker - 1, video_path, color_extractor) for i in range(workers)]
-        if frame_count % workers != 0:
-            args[-1] = (args[-1][0], frame_count - 1, video_path, color_extractor)
+        args = [(video_path, i * frames_per_worker, (i + 1) * frames_per_worker - 1, target_frames_per_worker,
+                 color_extractor) for i in range(workers)]
 
-        results = pool.starmap(process_frames, args)
+        if frame_count % workers != 0 or target_frames % workers != 0:
+            args[-1] = (
+                video_path, args[-1][1], frame_count - 1, target_frames - (workers - 1) * target_frames_per_worker,
+                color_extractor)
+
+        results = pool.starmap(extract_colors, args)
 
     # Concatenate results from all workers
     final_colors = [color for colors in results for color in colors]
@@ -96,22 +63,24 @@ def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, 
     return final_colors
 
 
-def extract_colors(video: cv2.VideoCapture, frame_count: int, target_frames: int, color_extractor: Callable) -> List:
+def extract_colors(video_path: str, start_frame: int, end_frame: int, target_frames: int,
+                   color_extractor: Callable) -> List:
     """
-    Extracts dominant colors from frames in a video file sequentially.
+    Extracts dominant colors from frames in a video file.
 
-    :param cv2.VideoCapture video: The video capture object.
-    :param int frame_count: The total number of frames in the video.
+    :param str video_path: The video capture object.
+    :param int start_frame: The index of the first frame to process.
+    :param int end_frame: The index of the last frame to process.
     :param int target_frames: The total number of frames to sample.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :return: List of dominant colors from the sampled frames.
     """
-    # Calculate frame_skip based on target_frames
-    frame_skip = frame_count // target_frames if target_frames else 1
+    video = cv2.VideoCapture(video_path)
+    video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-    # Set a default value for target_frames if it's None
-    if target_frames is None:
-        target_frames = frame_count
+    # Calculate frame_skip based on target_frames
+    total_frames = end_frame - start_frame + 1
+    frame_skip = total_frames // target_frames if target_frames else 1
 
     colors = []
 

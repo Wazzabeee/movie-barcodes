@@ -5,7 +5,10 @@ import cv2
 
 def get_dominant_color_avg(frame: np.ndarray) -> np.ndarray:
     """
-    Use simple average to find the most dominant color.
+    Gets the dominant color of a frame using simple averaging.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :return: Dominant color as a NumPy array.
     """
     avg_color_per_row = np.average(frame, axis=0)
     avg_color = np.average(avg_color_per_row, axis=0)
@@ -13,12 +16,22 @@ def get_dominant_color_avg(frame: np.ndarray) -> np.ndarray:
 
 
 def get_dominant_color_mean(frame: np.ndarray) -> np.ndarray:
+    """
+    Gets the dominant color of a frame using OpenCV's mean function.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :return: Dominant color as a NumPy array.
+    """
     return np.array(cv2.mean(frame)[:3])
 
 
 def get_dominant_color_kmeans(frame: np.ndarray, k: int = 1) -> np.ndarray:
     """
-    Use KMeans clustering to find the most dominant color.
+    Gets the dominant color of a frame using KMeans clustering.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :param int k: Number of clusters for KMeans algorithm. Defaults to 1.
+    :return: Dominant color as a NumPy array.
     """
     # Reshape the frame to be a list of pixels
     pixels = frame.reshape(-1, 3)
@@ -42,6 +55,12 @@ def get_dominant_color_kmeans(frame: np.ndarray, k: int = 1) -> np.ndarray:
 
 
 def get_dominant_color_hsv(frame: np.ndarray) -> np.ndarray:
+    """
+    Gets the dominant color of a frame by converting it to HSV color space and finding the dominant hue.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :return: Dominant color as a NumPy array.
+    """
     # Convert the image from BGR to HSV color space
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -61,6 +80,12 @@ def get_dominant_color_hsv(frame: np.ndarray) -> np.ndarray:
 
 
 def get_dominant_color_bgr(frame: np.ndarray) -> np.ndarray:
+    """
+    Gets the dominant color of a frame in the BGR color space by calculating the histograms for each channel.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :return: Dominant color as a NumPy array.
+    """
     # Calculate the histogram for each color channel
     hist_b = cv2.calcHist([frame], [0], None, [256], [0, 256])
     hist_g = cv2.calcHist([frame], [1], None, [256], [0, 256])

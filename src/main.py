@@ -2,11 +2,10 @@ import argparse
 import os
 import logging
 import time
-import cv2
 
 from barcode_generation import generate_circular_barcode, generate_barcode
 
-from utility import save_barcode_image, get_dominant_color_function, format_time
+from utility import save_barcode_image, get_dominant_color_function, format_time, get_video_properties
 from video_processing import load_video, extract_colors, parallel_extract_colors
 
 MAX_PROCESSES = 8  # You can adjust this based on your machine's capacity.
@@ -15,20 +14,13 @@ MAX_PROCESSES = 8  # You can adjust this based on your machine's capacity.
 def generate_and_save_barcode(args, dominant_color_function, method: str):
     start_time = time.time()
     video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
-
     # Get Video Properties
-    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = video.get(cv2.CAP_PROP_FPS)
-    video_duration = total_frames / fps if fps > 0 else 0  # in seconds
-    video_size = os.path.getsize(args.input_video_path)  # in bytes
-
-    # Adjust the frame_count for the barcode width
-    adjusted_frame_count = frame_count // args.frame_skip
+    total_frames, fps, video_duration, video_size = get_video_properties(video, args)
 
     if args.workers is not None:
         colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, args.workers)
     else:
-        colors = extract_colors(video, frame_count, dominant_color_function)
+        colors = extract_colors(video, frame_count, args.width, dominant_color_function)
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
@@ -36,7 +28,7 @@ def generate_and_save_barcode(args, dominant_color_function, method: str):
                                             frame_width)  # Assuming image width = video frame width for circular
         # barcodes
     else:
-        barcode = generate_barcode(colors, frame_height, adjusted_frame_count)
+        barcode = generate_barcode(colors, frame_height, frame_count, args.width)
 
     base_name = os.path.basename(args.input_video_path)
     file_name_without_extension = os.path.splitext(base_name)[0]
@@ -100,10 +92,10 @@ if __name__ == "__main__":
                         default=None,
                         help='Number of workers for parallel processing. If not provided, processing will be '
                              'sequential.')
-    parser.add_argument('--frame_skip',
+    parser.add_argument('--width',
                         type=int,
-                        default=1,
-                        help='Number of frames to skip between processing. Default is 1 (process every frame).')
+                        default=None,
+                        help='Width of the output image. If not provided, the width will be the same as the video')
     parser.add_argument('--all_methods',
                         type=bool,
                         default=False,

@@ -1,5 +1,5 @@
 from multiprocessing import Pool
-from typing import Callable
+from typing import Callable, List
 from utility import format_time
 
 import cv2
@@ -7,10 +7,14 @@ import time
 import numpy as np
 from tqdm import tqdm
 
-CHUNK_SIZE = 10  # Adjust this based on the desired chunk size
-
 
 def load_video(video_path: str) -> tuple:
+    """
+    Load a video file and return its properties.
+
+    :param str video_path: The path to the video file.
+    :return: Tuple containing the video capture object, frame count, frame width, and frame height.
+    """
     video = cv2.VideoCapture(video_path)
     frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -18,15 +22,16 @@ def load_video(video_path: str) -> tuple:
     return video, frame_count, frame_width, frame_height
 
 
-def process_frame_chunk(chunk_frames, color_extractor):
-    colors = []
-    for frame in chunk_frames:
-        dominant = color_extractor(frame)
-        colors.append(dominant)
-    return colors
-
-
 def process_frames(start_frame: int, end_frame: int, video_path: str, color_extractor: Callable) -> list:
+    """
+    Process frames in a range to extract dominant colors.
+
+    :param int start_frame: The index of the first frame to process.
+    :param int end_frame: The index of the last frame to process.
+    :param str video_path: The path to the video file.
+    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :return: List of dominant colors for the frames in the range.
+    """
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
@@ -56,6 +61,15 @@ def process_frames(start_frame: int, end_frame: int, video_path: str, color_extr
 
 
 def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, workers=1) -> list:
+    """
+    Extract dominant colors from frames in a video file using parallel processing.
+
+    :param str video_path: The path to the video file.
+    :param int frame_count: The total number of frames in the video.
+    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :param int workers: Number of parallel workers.
+    :return: List of dominant colors for the frames in the video.
+    """
     frames_per_worker = frame_count // workers
 
     with Pool(workers) as pool:
@@ -71,26 +85,46 @@ def parallel_extract_colors(video_path: str, frame_count: int, color_extractor, 
     return final_colors
 
 
-def extract_colors(video: cv2.VideoCapture, frame_count: int, color_extractor: Callable, frame_skip: int = 1) -> list:
+def extract_colors(video: cv2.VideoCapture, frame_count: int, target_frames: int, color_extractor: Callable) -> List:
+    """
+    Extracts dominant colors from frames in a video file sequentially.
+
+    :param cv2.VideoCapture video: The video capture object.
+    :param int frame_count: The total number of frames in the video.
+    :param int target_frames: The total number of frames to sample.
+    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :return: List of dominant colors from the sampled frames.
+    """
+    # Calculate frame_skip based on target_frames
+    frame_skip = frame_count // target_frames if target_frames else 1
+
+    # Set a default value for target_frames if it's None
+    if target_frames is None:
+        target_frames = frame_count
+
     colors = []
 
-    for _ in tqdm(range(0, frame_count, frame_skip)):
+    for _ in tqdm(range(0, target_frames), desc='Processing frames'):
+        for _ in range(frame_skip - 1):
+            video.grab()  # Skip frames
+
         ret, frame = video.read()
         if ret:
-            # frame = crop_black_borders(frame)
             dominant_color = color_extractor(frame)
             colors.append(dominant_color)
+
+    video.release()
 
     return colors
 
 
-def crop_black_borders(frame: np.ndarray, threshold=30) -> np.ndarray:
+def crop_black_borders(frame: np.ndarray, threshold: int = 30) -> np.ndarray:
     """
     Crop out black borders from a frame.
 
-    :param frame: Input frame.
-    :param threshold: Threshold below which a pixel is considered 'black'.
-    :return: Cropped frame.
+    :param np.ndarray frame: Input frame.
+    :param int threshold: Threshold below which a pixel is considered 'black'.
+    :return np.ndarray: Cropped frame.
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 

@@ -13,3 +13,5 @@
 - [ ] Ensure the software can handle various video formats beyond MP4
 - [ ] Allow the software to process multiple videos at once
 - [ ] Add custom naming option through CLI
+- [ ] Add examples to Readme
+- [ ] Develop POC on Hugging Face Space

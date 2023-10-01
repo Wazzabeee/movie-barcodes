@@ -1,6 +1,9 @@
 # Movie Color Barcodes
+The Lodger: A Story of the London Fog (1927) - Alfred Hitchcock - [Public Domain](https://archive.org/details/TheLodgerAStoryOfTheLondonFog_579)
 
-Add images
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_circular.png?raw=true)  |  ![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_horizontal.png?raw=true)
 
 ## Overview
 Compress every frame of a movie in a single color barcode.
@@ -65,4 +68,8 @@ Command-line arguments for the script.
 - [ ] Allow the software to process multiple videos at once
 - [ ] Add examples to Readme
 - [ ] Develop POC on Hugging Face Space
+
+# More Examples
+## Circular Barcodes
+## Horizontal Barcodes
 

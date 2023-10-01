@@ -105,8 +105,9 @@ if __name__ == "__main__":
     parser.add_argument('--workers',
                         type=int,
                         default=None,
-                        help='Number of workers for parallel processing. If not provided, processing will be '
-                             'sequential.')
+                        help='Number of workers for parallel processing. Default behavior uses all available CPU cores.'
+                             'Setting this to 1 will use sequential processing. Do not specify a value greater than '
+                             'the number of available CPU cores.')
     parser.add_argument('--width',
                         type=int,
                         default=None,

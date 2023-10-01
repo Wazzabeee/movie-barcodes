@@ -4,29 +4,44 @@ import logging
 import time
 
 from barcode_generation import generate_circular_barcode, generate_barcode
+from typing import Callable
 
 from utility import save_barcode_image, get_dominant_color_function, format_time, get_video_properties
 from video_processing import load_video, extract_colors, parallel_extract_colors
 
-MAX_PROCESSES = 8  # You can adjust this based on your machine's capacity.
+MAX_PROCESSES = os.cpu_count()
 
 
-def generate_and_save_barcode(args, dominant_color_function, method: str):
+def generate_and_save_barcode(args, dominant_color_function: Callable, method: str) -> None:
     start_time = time.time()
-    video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
+
     # Get Video Properties
+    video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
     total_frames, fps, video_duration, video_size = get_video_properties(video, args)
 
+    # If the user specifies the 'workers' argument
     if args.workers is not None:
-        colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, args.workers)
+        if args.workers == 1:
+            # If the user explicitly sets 'workers' to 1, use sequential processing
+            colors = extract_colors(video, frame_count, args.width, dominant_color_function)
+        else:
+            # Check if the user-specified number of workers exceeds the CPU count
+            if args.workers > MAX_PROCESSES:
+                raise ValueError(
+                    f"The number of workers specified ({args.workers}) exceeds the number of available CPU cores ({MAX_PROCESSES}).")
+            else:
+                # Perform parallel processing with the user-specified number of workers
+                colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function,
+                                                 args.workers)
     else:
-        colors = extract_colors(video, frame_count, args.width, dominant_color_function)
+        # If 'workers' is not specified, use the maximum number of available CPU cores
+        colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, MAX_PROCESSES)
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
+        # Assuming image width = video frame width for circular barcodes
         barcode = generate_circular_barcode(colors,
-                                            frame_width)  # Assuming image width = video frame width for circular
-        # barcodes
+                                            frame_width)
     else:
         barcode = generate_barcode(colors, frame_height, frame_count, args.width)
 
@@ -48,9 +63,9 @@ def generate_and_save_barcode(args, dominant_color_function, method: str):
     video.release()
 
 
-def main(args):
+def main(args) -> None:
     # Get a list of all available methods
-    methods = ['avg', 'hsv', 'bgr']
+    methods = ['avg', 'hsv', 'bgr', 'kmeans']
 
     # Check if all_methods flag is set
     if args.all_methods:

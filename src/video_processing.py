@@ -16,9 +16,20 @@ def load_video(video_path: str) -> tuple:
     :return: Tuple containing the video capture object, frame count, frame width, and frame height.
     """
     video = cv2.VideoCapture(video_path)
+
+    if not video.isOpened():
+        raise ValueError(f"Could not open the video file: {video_path}")
+
     frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    if frame_count <= 0:
+        raise ValueError(f"The video file {video_path} has no frames.")
+
+    if frame_width <= 0 or frame_height <= 0:
+        raise ValueError(f"The video file {video_path} has invalid dimensions.")
+
     return video, frame_count, frame_width, frame_height
 
 

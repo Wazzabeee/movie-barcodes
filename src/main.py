@@ -6,10 +6,11 @@ import time
 from barcode_generation import generate_circular_barcode, generate_barcode
 from typing import Callable
 
-from utility import save_barcode_image, get_dominant_color_function, format_time, get_video_properties
+from utility import save_barcode_image, get_dominant_color_function, format_time, get_video_properties, validate_args
 from video_processing import load_video, extract_colors, parallel_extract_colors
 
 MAX_PROCESSES = os.cpu_count()
+MIN_FRAME_COUNT = 2
 
 
 def generate_and_save_barcode(args, dominant_color_function: Callable, method: str) -> None:
@@ -25,14 +26,9 @@ def generate_and_save_barcode(args, dominant_color_function: Callable, method: s
             # If the user explicitly sets 'workers' to 1, use sequential processing
             colors = extract_colors(video, frame_count, args.width, dominant_color_function)
         else:
-            # Check if the user-specified number of workers exceeds the CPU count
-            if args.workers > MAX_PROCESSES:
-                raise ValueError(
-                    f"The number of workers specified ({args.workers}) exceeds the number of available CPU cores ({MAX_PROCESSES}).")
-            else:
-                # Perform parallel processing with the user-specified number of workers
-                colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function,
-                                                 args.workers)
+            # Perform parallel processing with the user-specified number of workers
+            colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function,
+                                             args.workers)
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
         colors = parallel_extract_colors(args.input_video_path, frame_count, dominant_color_function, MAX_PROCESSES)
@@ -64,6 +60,12 @@ def generate_and_save_barcode(args, dominant_color_function: Callable, method: s
 
 
 def main(args) -> None:
+    # Check if the input video file exists
+    _, frame_count, _, _ = load_video(args.input_video_path)
+
+    # Check if the arguments are valid
+    validate_args(args, frame_count)
+
     # Get a list of all available methods
     methods = ['avg', 'hsv', 'bgr', 'kmeans']
 

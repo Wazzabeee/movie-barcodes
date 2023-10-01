@@ -4,8 +4,6 @@
 ### Todo
 
 - [ ] Optimize Parellel Processing using cap.grap() just like sequential version
-- [ ] Define max workers using cpu.cores()
-- [ ] Define default behavior as maximum cores for faster generation
 - [ ] Optimize K-means to speed up the process
 - [ ] Add small GUI with all options available
 - [ ] Add option to modify the barcode's height (current is frame's height)
@@ -15,3 +13,7 @@
 - [ ] Add custom naming option through CLI
 - [ ] Add examples to Readme
 - [ ] Develop POC on Hugging Face Space
+
+### Done
+- [X] Define max workers using cpu.cores()
+- [X] Define default behavior as maximum cores for faster generation

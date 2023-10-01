@@ -3,8 +3,49 @@ import os
 import cv2
 from PIL import Image
 from typing import Callable
+from main import MAX_PROCESSES, MIN_FRAME_COUNT
 
 from color_extraction import *
+
+
+def validate_args(args, frame_count: int) -> None:
+    """
+    Validate command-line arguments for logical errors.
+    """
+    # Check if input video file exists
+    if not os.path.exists(args.input_video_path):
+        raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
+
+    valid_extensions = ['.mp4']
+    if os.path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
+        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4).")
+
+    # Check if the destination path is writable
+    if args.destination_path is not None:
+        destination_dir = os.path.dirname(args.destination_path)
+        if not os.access(destination_dir, os.W_OK):
+            raise PermissionError(f"The specified destination path '{args.destination_path}' is not writable.")
+
+    if args.workers is not None:
+        if args.workers < 1:
+            raise ValueError("The number of workers must be greater than or equal to 1.")
+        elif args.workers > MAX_PROCESSES:
+            raise ValueError(
+                f"The number of workers specified ({args.workers}) exceeds the number of available CPU cores ({MAX_PROCESSES}).")
+
+    if args.width is not None:
+        if args.width <= 0:
+            raise ValueError("Width must be greater than 0.")
+        if args.width > frame_count:
+            raise ValueError(
+                f"Specified width ({args.width}) cannot be greater than the number of frames ({frame_count}) in the "
+                f"video.")
+
+    if frame_count < MIN_FRAME_COUNT:
+        raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
+
+    if args.all_methods and args.method is not None:
+        raise ValueError("The --all_methods flag cannot be used with the --method argument.")
 
 
 def get_dominant_color_function(method: str) -> Callable:

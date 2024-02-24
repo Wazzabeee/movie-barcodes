@@ -1,0 +1,39 @@
+name: CI Pipeline
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Do the tests pass?
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11
+    - name: Install dependencies and run tests
+      run: |
+        pip install -r requirements.txt
+        pip install pytest
+        pytest tests/
+
+  good-practices:
+    runs-on: ubuntu-latest
+    name: Do the code respects Python standards?
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11
+    - name: Install dependencies and run linters
+      run: |
+        pip install -r requirements_lint.txt
+        pip install -r requirements.txt
+        black . --line-length=120 --check --verbose
+        flake8
+        pip install --upgrade wrapt
+        pylint src/ tests/ --rcfile=setup.cfg --fail-under=6
+        mypy -p src -p tests --ignore-missing-imports --disallow-incomplete-defs
+    continue-on-error: true

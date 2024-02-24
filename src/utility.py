@@ -15,7 +15,7 @@ def validate_args(args, frame_count: int, MAX_PROCESSES: int, MIN_FRAME_COUNT: i
     if not os.path.exists(args.input_video_path):
         raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
 
-    valid_extensions = ['.mp4']
+    valid_extensions = ['.mp4', '.webm']
     if os.path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
         raise ValueError("The specified video file must have a valid video extension (e.g., .mp4).")
 

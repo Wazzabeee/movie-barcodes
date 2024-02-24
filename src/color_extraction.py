@@ -25,7 +25,7 @@ def get_dominant_color_mean(frame: np.ndarray) -> np.ndarray:
     return np.array(cv2.mean(frame)[:3])
 
 
-def get_dominant_color_kmeans(frame: np.ndarray, k: int = 1) -> np.ndarray:
+def get_dominant_color_kmeans(frame: np.ndarray, k: int = 3) -> np.ndarray:
     """
     Gets the dominant color of a frame using KMeans clustering.
 

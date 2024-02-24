@@ -34,6 +34,6 @@ jobs:
         black . --line-length=120 --check --verbose
         flake8
         pip install --upgrade wrapt
-        pylint src/ tests/ --rcfile=setup.cfg --fail-under=6
+        pylint src/ tests/ --rcfile=setup.cfg --fail-under=9 --generated-members=cv2.*
         mypy -p src -p tests --ignore-missing-imports --disallow-incomplete-defs
     continue-on-error: true

@@ -1,48 +1,78 @@
 import argparse
-import os
 import logging
 import time
 
-from barcode_generation import generate_circular_barcode, generate_barcode
 from typing import Callable
+from os import cpu_count, path
 
-from utility import save_barcode_image, get_dominant_color_function, format_time, get_video_properties, validate_args
-from video_processing import load_video, extract_colors, parallel_extract_colors
+from src.barcode_generation import generate_circular_barcode, generate_barcode
 
-MAX_PROCESSES = os.cpu_count()
+from src.utility import (
+    save_barcode_image,
+    get_dominant_color_function,
+    format_time,
+    get_video_properties,
+    validate_args,
+)
+from src.video_processing import load_video, extract_colors, parallel_extract_colors
+
+MAX_PROCESSES = cpu_count() or 1
 MIN_FRAME_COUNT = 2
 
 
-def generate_and_save_barcode(args, dominant_color_function: Callable, method: str) -> None:
+def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
+    """
+    Generate and save the barcode image based on the specified method.
+    :param args:
+    :param dominant_color_function:
+    :param method:
+    :return:
+    """
     start_time = time.time()
 
     # Get Video Properties
     video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
-    total_frames, fps, video_duration, video_size = get_video_properties(video, args)
+    _, _, video_duration, video_size = get_video_properties(video, args)
 
     # If the user specifies the 'workers' argument
     if args.workers is not None:
         if args.workers == 1:
             # If the user explicitly sets 'workers' to 1, use sequential processing
-            colors = extract_colors(args.input_video_path, 0, frame_count - 1, args.width, dominant_color_function)
+            colors = extract_colors(
+                args.input_video_path,
+                0,
+                frame_count - 1,
+                args.width,
+                dominant_color_function,
+            )
         else:
             # Perform parallel processing with the user-specified number of workers
-            colors = parallel_extract_colors(args.input_video_path, frame_count, args.width, dominant_color_function,
-                                             args.workers)
+            colors = parallel_extract_colors(
+                args.input_video_path,
+                frame_count,
+                args.width,
+                dominant_color_function,
+                args.workers,
+            )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
-        colors = parallel_extract_colors(args.input_video_path, frame_count, args.width, dominant_color_function, MAX_PROCESSES)
+        colors = parallel_extract_colors(
+            args.input_video_path,
+            frame_count,
+            args.width,
+            dominant_color_function,
+            MAX_PROCESSES,
+        )
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
         # Assuming image width = video frame width for circular barcodes
-        barcode = generate_circular_barcode(colors,
-                                            frame_width)
+        barcode = generate_circular_barcode(colors, frame_width)
     else:
         barcode = generate_barcode(colors, frame_height, frame_count, args.width)
 
-    base_name = os.path.basename(args.input_video_path)
-    file_name_without_extension = os.path.splitext(base_name)[0]
+    base_name = path.basename(args.input_video_path)
+    file_name_without_extension = path.splitext(base_name)[0]
     save_barcode_image(barcode, file_name_without_extension, args, method)
 
     # Calculate processing time
@@ -50,16 +80,21 @@ def generate_and_save_barcode(args, dominant_color_function: Callable, method: s
     processing_time = end_time - start_time
 
     # Log the information
-    logging.info(f"Processed File: {file_name_without_extension}")
-    logging.info(f"Number of Frames: {frame_count}")
-    logging.info(f"Video Duration: {format_time(video_duration)}")
-    logging.info(f"Video Size: {video_size / (1024 * 1024):.2f} MB")
-    logging.info(f"Processing Time: {format_time(processing_time)}")
+    logging.info("Processed File: %s", file_name_without_extension)
+    logging.info("Number of Frames: %d", frame_count)
+    logging.info("Video Duration: %s", format_time(video_duration))
+    logging.info("Video Size: %.2f MB", video_size / (1024 * 1024))
+    logging.info("Processing Time: %s", format_time(processing_time))
 
     video.release()
 
 
-def main(args) -> None:
+def main(args: argparse.Namespace) -> None:
+    """
+    Main function to generate a barcode from a video file.
+    :param args:
+    :return:
+    """
     # Check if the input video file exists
     _, frame_count, _, _ = load_video(args.input_video_path)
 
@@ -67,7 +102,7 @@ def main(args) -> None:
     validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
 
     # Get a list of all available methods
-    methods = ['avg', 'hsv', 'bgr', 'kmeans']
+    methods = ["avg", "hsv", "bgr", "kmeans"]
 
     # Check if all_methods flag is set
     if args.all_methods:
@@ -82,48 +117,63 @@ def main(args) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename=os.path.join('..', 'logs.txt'), level=logging.INFO, format='%(asctime)s - %(message)s')
-    logging.info("\n" + "="*40 + " NEW RUN " + "="*40 + "\n")
+    logging.basicConfig(
+        filename=path.join("..", "logs.txt"),
+        level=logging.INFO,
+        format="%(asctime)s - %(message)s",
+    )
+    header_msg = "=" * 40 + " NEW RUN " + "=" * 40
+    logging.info("\n%s\n", header_msg)
 
-    parser = argparse.ArgumentParser(description='Generate a color barcode from a video file.')
-    parser.add_argument('input_video_path',
-                        type=str,
-                        help='Path to the video file.')
-    parser.add_argument('--destination_path',
-                        type=str,
-                        nargs='?',
-                        help='Path to save the output image. If not provided, the image will be saved in a default '
-                             'location.',
-                        default=None)
-    parser.add_argument('--barcode_type',
-                        choices=['horizontal', 'circular'],
-                        default='horizontal',
-                        help='Type of barcode to generate: horizontal or circular. Default is horizontal.')
-    parser.add_argument('--method',
-                        choices=['avg', 'kmeans', 'hsv', 'bgr'],
-                        default='avg',
-                        help='Method to extract dominant color: avg (average), kmeans (K-Means clustering), hsv (HSV '
-                             'histogram), or bgr (BGR histogram). Default is avg.')
-    parser.add_argument('--workers',
-                        type=int,
-                        default=None,
-                        help='Number of workers for parallel processing. Default behavior uses all available CPU cores.'
-                             'Setting this to 1 will use sequential processing. Do not specify a value greater than '
-                             'the number of available CPU cores.')
-    parser.add_argument('--width',
-                        type=int,
-                        default=None,
-                        help='Width of the output image. If not provided, the width will be the same as the video')
-    parser.add_argument('--output_name',
-                        type=str,
-                        nargs='?',
-                        help='Custom name for the output barcode image. If not provided, a name will be automatically '
-                             'generated.',
-                        default=None)
-    parser.add_argument('--all_methods',
-                        type=bool,
-                        default=False,
-                        help='If provided, all methods to extract dominant color will be used to create barcodes. '
-                             'Overrides --method argument.')
-    args = parser.parse_args()
-    main(args)
+    parser = argparse.ArgumentParser(description="Generate a color barcode from a video file.")
+    parser.add_argument("input_video_path", type=str, help="Path to the video file.")
+    parser.add_argument(
+        "--destination_path",
+        type=str,
+        nargs="?",
+        help="Path to save the output image. If not provided, the image will be saved in a default " "location.",
+        default=None,
+    )
+    parser.add_argument(
+        "--barcode_type",
+        choices=["horizontal", "circular"],
+        default="horizontal",
+        help="Type of barcode to generate: horizontal or circular. Default is horizontal.",
+    )
+    parser.add_argument(
+        "--method",
+        choices=["avg", "kmeans", "hsv", "bgr"],
+        default="avg",
+        help="Method to extract dominant color: avg (average), kmeans (K-Means clustering), hsv (HSV "
+        "histogram), or bgr (BGR histogram). Default is avg.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Number of workers for parallel processing. Default behavior uses all available CPU cores."
+        "Setting this to 1 will use sequential processing. Do not specify a value greater than "
+        "the number of available CPU cores.",
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=None,
+        help="Width of the output image. If not provided, the width will be the same as the video",
+    )
+    parser.add_argument(
+        "--output_name",
+        type=str,
+        nargs="?",
+        help="Custom name for the output barcode image. If not provided, a name will be automatically " "generated.",
+        default=None,
+    )
+    parser.add_argument(
+        "--all_methods",
+        type=bool,
+        default=False,
+        help="If provided, all methods to extract dominant color will be used to create barcodes. "
+        "Overrides --method argument.",
+    )
+    arguments = parser.parse_args()
+    main(arguments)

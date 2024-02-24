@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import cv2
 
@@ -25,18 +27,22 @@ def generate_circular_barcode(colors: list, img_size: int, scale_factor: int = 1
 
     for idx, color in enumerate(colors):
         radius = (idx + 1) * radius_increment
-        cv2.circle(barcode_high_res,
-                   (center, center),
-                   int(radius),
-                   tuple(map(int, color[::-1])) + (255,),
-                   thickness=scale_factor)
+        cv2.circle(
+            barcode_high_res,
+            (center, center),
+            int(radius),
+            tuple(map(int, color[::-1])) + (255,),
+            thickness=scale_factor,
+        )
 
     # Down-sample to the desired resolution with antialiasing
     barcode = cv2.resize(barcode_high_res, (img_size, img_size), interpolation=cv2.INTER_AREA)
     return barcode
 
 
-def generate_barcode(colors: list, frame_height: int, frame_count: int, frame_width: int = None) -> np.ndarray:
+def generate_barcode(
+    colors: list, frame_height: int, frame_count: int, frame_width: Optional[int] = None
+) -> np.ndarray:
     """
     Generate a barcode image based on dominant colors of video frames.
 
@@ -48,8 +54,9 @@ def generate_barcode(colors: list, frame_height: int, frame_count: int, frame_wi
     :return: np.ndarray: A barcode image.
     """
     if frame_width:  # If frame_width is specified, generate a barcode with the given width
-        step = max(1,
-                   len(colors) // frame_width)  # Calculate how many frames each column in the barcode should represent
+        step = max(
+            1, len(colors) // frame_width
+        )  # Calculate how many frames each column in the barcode should represent
         # Sample the colors based on the step size
         sampled_colors = [colors[i] for i in range(0, len(colors), step)]
         barcode = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)

@@ -31,8 +31,13 @@ def load_video(video_path: str) -> tuple:
     return video, frame_count, frame_width, frame_height
 
 
-def parallel_extract_colors(video_path: str, frame_count: int, target_frames: int, color_extractor,
-                            workers: int) -> list:
+def parallel_extract_colors(
+    video_path: str,
+    frame_count: int,
+    target_frames: int,
+    color_extractor: Callable,
+    workers: int,
+) -> list:
     """
     Extract dominant colors from frames in a video file using parallel processing.
 
@@ -50,13 +55,25 @@ def parallel_extract_colors(video_path: str, frame_count: int, target_frames: in
     target_frames_per_worker = target_frames // workers
 
     with Pool(workers) as pool:
-        args = [(video_path, i * frames_per_worker, (i + 1) * frames_per_worker - 1, target_frames_per_worker,
-                 color_extractor) for i in range(workers)]
+        args = [
+            (
+                video_path,
+                i * frames_per_worker,
+                (i + 1) * frames_per_worker - 1,
+                target_frames_per_worker,
+                color_extractor,
+            )
+            for i in range(workers)
+        ]
 
         if frame_count % workers != 0 or target_frames % workers != 0:
             args[-1] = (
-                video_path, args[-1][1], frame_count - 1, target_frames - (workers - 1) * target_frames_per_worker,
-                color_extractor)
+                video_path,
+                args[-1][1],
+                frame_count - 1,
+                target_frames - (workers - 1) * target_frames_per_worker,
+                color_extractor,
+            )
 
         results = pool.starmap(extract_colors, args)
 
@@ -66,8 +83,13 @@ def parallel_extract_colors(video_path: str, frame_count: int, target_frames: in
     return final_colors
 
 
-def extract_colors(video_path: str, start_frame: int, end_frame: int, target_frames: int,
-                   color_extractor: Callable) -> List:
+def extract_colors(
+    video_path: str,
+    start_frame: int,
+    end_frame: int,
+    target_frames: int,
+    color_extractor: Callable,
+) -> List:
     """
     Extracts dominant colors from frames in a video file.
 
@@ -87,7 +109,7 @@ def extract_colors(video_path: str, start_frame: int, end_frame: int, target_fra
 
     colors = []
 
-    for _ in tqdm(range(0, target_frames), desc='Processing frames'):
+    for _ in tqdm(range(0, target_frames), desc="Processing frames"):
         for _ in range(frame_skip - 1):
             video.grab()  # Skip frames
 
@@ -120,6 +142,6 @@ def crop_black_borders(frame: np.ndarray, threshold: int = 30) -> np.ndarray:
     cnt = max(contours, key=cv2.contourArea)
     x, y, w, h = cv2.boundingRect(cnt)
 
-    cropped_frame = frame[y:y + h, x:x + w]
+    cropped_frame = frame[y : y + h, x : x + w]
 
     return cropped_frame

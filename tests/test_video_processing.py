@@ -1,13 +1,20 @@
 import unittest
 from unittest.mock import Mock
-from src import video_processing  # Adjust the import as per your project structure and naming
 import numpy as np
+from src import video_processing
 
 
 class TestVideoProcessing(unittest.TestCase):
+    """
+    Test the video processing functions.
+    """
 
     def test_load_video(self):
-        video_path = 'sample.mp4'
+        """
+        Test the load_video function.
+        :return:
+        """
+        video_path = "sample.mp4"
         video, frame_count, frame_width, frame_height = video_processing.load_video(video_path)
 
         self.assertIsNotNone(video)
@@ -16,15 +23,25 @@ class TestVideoProcessing(unittest.TestCase):
         self.assertIsInstance(frame_height, int)
 
     def test_process_frame_chunk(self):
+        """
+        Test the process_frame_chunk function.
+        :return:
+        """
         chunk_frames = [np.ones((10, 10, 3), dtype=np.uint8) * color for color in range(2)]
-        color_extractor = lambda frame: np.mean(frame, axis=(0, 1)).mean()  # Adjusted color_extractor
+
+        def color_extractor(frame):
+            return np.mean(frame, axis=(0, 1)).mean()
 
         colors = video_processing.process_frame_chunk(chunk_frames, color_extractor)
 
         self.assertEqual(len(colors), 2)
-        self.assertTrue(all(isinstance(color, float) for color in colors))  # Adjusted assertion
+        self.assertTrue(all(isinstance(color, float) for color in colors))
 
     def test_extract_colors(self):
+        """
+        Test the extract_colors function.
+        :return:
+        """
         # Setup Mock video object with a read method that returns a tuple
         video = Mock()
         video.read = Mock(return_value=(True, "mock_frame"))
@@ -37,5 +54,5 @@ class TestVideoProcessing(unittest.TestCase):
         self.assertEqual(len(colors), frame_count)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

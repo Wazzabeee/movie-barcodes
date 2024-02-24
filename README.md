@@ -72,4 +72,3 @@ Command-line arguments for the script.
 # More Examples
 ## Circular Barcodes
 ## Horizontal Barcodes
-

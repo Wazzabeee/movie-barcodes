@@ -23,7 +23,7 @@ repos:
   hooks:
     - id: pylint
       name: pylint
-      entry: pylint src/ tests/ --rcfile=setup.cfg --fail-under=6
+      entry: pylint src/ tests/ --rcfile=setup.cfg --fail-under=9 --generated-members=cv2.*
       language: system
       pass_filenames: false
       types: [python]

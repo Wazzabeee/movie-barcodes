@@ -46,12 +46,12 @@ def get_dominant_color_kmeans(frame: np.ndarray, k: int = 3) -> np.ndarray:
     # If we are looking only for the most dominant color
     if k == 1:
         return cluster_centers[0]
-    else:
-        # If we wanted to retrieve more than one color
-        # We'd take the center of the largest cluster, assuming it's the dominant color
-        labels, counts = np.unique(kmeans.labels_, return_counts=True)
-        dominant_index = labels[np.argmax(counts)]
-        return cluster_centers[dominant_index]
+
+    # If we wanted to retrieve more than one color
+    # We'd take the center of the largest cluster, assuming it's the dominant color
+    labels, counts = np.unique(kmeans.labels_, return_counts=True)
+    dominant_index = labels[np.argmax(counts)]
+    return cluster_centers[dominant_index]
 
 
 def get_dominant_color_hsv(frame: np.ndarray) -> np.ndarray:

@@ -1,6 +1,6 @@
 import unittest
 import argparse
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from src import utility
 
@@ -10,10 +10,10 @@ class TestUtility(unittest.TestCase):
     Test the utility functions.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up the test case.
-        :return:
+        :return: None
         """
         super().setUp()
         self.args = argparse.Namespace(
@@ -36,20 +36,22 @@ class TestUtility(unittest.TestCase):
         self.mock_access = patcher_access.start()
 
     @patch("src.utility.path.exists")
-    def test_file_not_found_error(self, mock_exists):
+    def test_file_not_found_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a FileNotFoundError when the input video file does not exist.
-        :param mock_exists: False
+        :param mock_exists: MagicMock object for path.exists function to return False
+        :return: None
         """
         mock_exists.return_value = False
         with self.assertRaises(FileNotFoundError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
     @patch("src.utility.path.exists")
-    def test_invalid_extension_error(self, mock_exists):
+    def test_invalid_extension_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a ValueError when the input video file has an invalid extension.
-        :param mock_exists: True
+        :param mock_exists: MagicMock object for path.exists function to return True
+        :return: None
         """
         mock_exists.return_value = True
         self.args.input_video_path = "invalid_extension.txt"
@@ -58,11 +60,12 @@ class TestUtility(unittest.TestCase):
 
     @patch("src.utility.path.exists")
     @patch("src.utility.access")
-    def test_destination_path_not_writable(self, mock_access, mock_exists):
+    def test_destination_path_not_writable(self, mock_access: MagicMock, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a PermissionError when the destination path is not writable.
-        :param mock_access: True
-        :param mock_exists: True
+        :param mock_access: MagicMock object for os.access function to return False
+        :param mock_exists: MagicMock object for path.exists function to return True
+        :return: None
         """
         mock_exists.return_value = True
         mock_access.return_value = False
@@ -70,10 +73,11 @@ class TestUtility(unittest.TestCase):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
     @patch("src.utility.path.exists")
-    def test_workers_value_error(self, mock_exists):
+    def test_workers_value_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a ValueError when the number of workers is invalid.
-        :param mock_exists: True
+        :param mock_exists: MagicMock object for path.exists function to return True
+        :return: None
         """
         mock_exists.return_value = True
         self.args.workers = 0  # Testing for < 1
@@ -84,9 +88,10 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    def test_invalid_width(self):
+    def test_invalid_width(self) -> None:
         """
         Test that validate_args raises a ValueError when the width is invalid.
+        :return: None
         """
         self.args.width = 0  # Testing for <= 0
         with self.assertRaises(ValueError):
@@ -96,26 +101,29 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    def test_frame_count_too_low(self):
+    def test_frame_count_too_low(self) -> None:
         """
         Test that validate_args raises a ValueError when the frame count is too low.
+        :return: None
         """
         low_frame_count = self.MIN_FRAME_COUNT - 1
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, low_frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    def test_all_methods_and_method_error(self):
+    def test_all_methods_and_method_error(self) -> None:
         """
         Test that validate_args raises a ValueError when the --all_methods flag is used with the --method argument.
+        :return: None
         """
         self.args.all_methods = True
         self.args.method = "avg"  # Explicitly setting method to simulate conflict
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    def test_no_error_raised(self):
+    def test_no_error_raised(self) -> None:
         """
         Test that no error is raised when all arguments are valid.
+        :return: None
         """
         utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 

@@ -1,5 +1,5 @@
 from multiprocessing import Pool
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import cv2
 import numpy as np
@@ -87,8 +87,8 @@ def extract_colors(
     video_path: str,
     start_frame: int,
     end_frame: int,
-    target_frames: int,
     color_extractor: Callable,
+    target_frames: Optional[int] = None,
 ) -> List:
     """
     Extracts dominant colors from frames in a video file.
@@ -96,8 +96,8 @@ def extract_colors(
     :param str video_path: The video capture object.
     :param int start_frame: The index of the first frame to process.
     :param int end_frame: The index of the last frame to process.
-    :param int target_frames: The total number of frames to sample.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :param Optional[int] target_frames: The total number of frames to sample.
     :return: List of dominant colors from the sampled frames.
     """
     video = cv2.VideoCapture(video_path)
@@ -109,14 +109,13 @@ def extract_colors(
 
     colors = []
 
-    for _ in tqdm(range(0, target_frames), desc="Processing frames"):
-        for _ in range(frame_skip - 1):
-            video.grab()  # Skip frames
-
-        ret, frame = video.read()
+    for _ in tqdm(range(target_frames or total_frames), desc="Processing frames"):
+        ret, frame = video.read()  # Read the first or next frame
         if ret:
             dominant_color = color_extractor(frame)
             colors.append(dominant_color)
+        for _ in range(frame_skip - 1):
+            video.grab()  # Skip frames
 
     video.release()
 

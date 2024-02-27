@@ -42,8 +42,8 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
                 args.input_video_path,
                 0,
                 frame_count - 1,
-                args.width,
                 dominant_color_function,
+                args.width,
             )
         else:
             # Perform parallel processing with the user-specified number of workers

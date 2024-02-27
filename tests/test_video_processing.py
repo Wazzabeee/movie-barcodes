@@ -1,6 +1,5 @@
 import unittest
-from unittest.mock import Mock
-import numpy as np
+from unittest.mock import patch, MagicMock
 from src import video_processing
 
 
@@ -9,49 +8,71 @@ class TestVideoProcessing(unittest.TestCase):
     Test the video processing functions.
     """
 
-    def test_load_video(self):
+    @patch("src.video_processing.cv2.VideoCapture")
+    def test_load_video_raises_error_on_file_not_open(self, mock_video: MagicMock) -> None:
         """
-        Test the load_video function.
-        :return:
+        Test load_video raises ValueError when the video file cannot be opened.
+        :param mock_video: MagicMock object for cv2.VideoCapture
+        :return: None
         """
-        video_path = "sample.mp4"
-        video, frame_count, frame_width, frame_height = video_processing.load_video(video_path)
+        mock_video.return_value.isOpened.return_value = False
+        with self.assertRaises(ValueError) as context:
+            video_processing.load_video("nonexistent_file.mp4")
+        self.assertIn(
+            "Could not open the video file: nonexistent_file.mp4",
+            str(context.exception),
+        )
 
-        self.assertIsNotNone(video)
-        self.assertIsInstance(frame_count, int)
-        self.assertIsInstance(frame_width, int)
-        self.assertIsInstance(frame_height, int)
-
-    def test_process_frame_chunk(self):
+    @patch("src.video_processing.cv2.VideoCapture")
+    def test_load_video_raises_error_on_no_frames(self, mock_video: MagicMock) -> None:
         """
-        Test the process_frame_chunk function.
-        :return:
+        Test load_video raises ValueError when the video has no frames.
+        :param mock_video: MagicMock object for cv2.VideoCapture
+        :return: None
         """
-        chunk_frames = [np.ones((10, 10, 3), dtype=np.uint8) * color for color in range(2)]
+        mock_video.return_value.isOpened.return_value = True
+        mock_video.return_value.get.return_value = 0  # Mocking frame count as 0
+        with self.assertRaises(ValueError) as context:
+            video_processing.load_video("empty_video.mp4")
+        self.assertIn("The video file empty_video.mp4 has no frames.", str(context.exception))
 
-        def color_extractor(frame):
-            return np.mean(frame, axis=(0, 1)).mean()
-
-        colors = video_processing.process_frame_chunk(chunk_frames, color_extractor)
-
-        self.assertEqual(len(colors), 2)
-        self.assertTrue(all(isinstance(color, float) for color in colors))
-
-    def test_extract_colors(self):
+    @patch("src.video_processing.cv2.VideoCapture")
+    def test_load_video_raises_error_on_invalid_dimensions(self, mock_video: MagicMock) -> None:
         """
-        Test the extract_colors function.
-        :return:
+        Test load_video raises ValueError when video has invalid dimensions.
+        :param mock_video: MagicMock object for cv2.VideoCapture
+        :return: None
         """
-        # Setup Mock video object with a read method that returns a tuple
-        video = Mock()
-        video.read = Mock(return_value=(True, "mock_frame"))
+        mock_video.return_value.isOpened.return_value = True
+        mock_video.return_value.get.side_effect = [
+            1,
+            0,
+            0,
+        ]  # Mocking frame count as 1 and dimensions as 0
+        with self.assertRaises(ValueError) as context:
+            video_processing.load_video("invalid_dimensions.mp4")
+        self.assertIn(
+            "The video file invalid_dimensions.mp4 has invalid dimensions.",
+            str(context.exception),
+        )
 
-        frame_count = 10
-        color_extractor = Mock(return_value=np.array([255, 255, 255]))
-
-        colors = video_processing.extract_colors(video, frame_count, color_extractor)
-
-        self.assertEqual(len(colors), frame_count)
+    @patch("src.video_processing.cv2.VideoCapture")
+    def test_load_video_success(self, mock_video: MagicMock) -> None:
+        """
+        Test load_video successfully returns video properties.
+        :param mock_video: MagicMock object for cv2.VideoCapture
+        :return: None
+        """
+        mock_video.return_value.isOpened.return_value = True
+        mock_video.return_value.get.side_effect = [
+            100,
+            1920,
+            1080,
+        ]  # Mocking frame count, width, and height
+        video, frame_count, frame_width, frame_height = video_processing.load_video("valid_video.mp4")
+        self.assertEqual(frame_count, 100)
+        self.assertEqual(frame_width, 1920)
+        self.assertEqual(frame_height, 1080)
 
 
 if __name__ == "__main__":

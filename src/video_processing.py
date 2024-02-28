@@ -34,18 +34,18 @@ def load_video(video_path: str) -> tuple:
 def parallel_extract_colors(
     video_path: str,
     frame_count: int,
-    target_frames: int,
     color_extractor: Callable,
     workers: int,
+    target_frames: Optional[int] = None,
 ) -> list:
     """
     Extract dominant colors from frames in a video file using parallel processing.
 
     :param str video_path: The path to the video file.
     :param int frame_count: The total number of frames in the video.
-    :param int target_frames: The total number of frames to sample.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :param int workers: Number of parallel workers.
+    :param Optional[int] target_frames: The total number of frames to sample.
     :return: List of dominant colors for the frames in the video.
     """
     if target_frames is None:

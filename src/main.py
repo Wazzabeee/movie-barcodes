@@ -50,18 +50,18 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
             colors = parallel_extract_colors(
                 args.input_video_path,
                 frame_count,
-                args.width,
                 dominant_color_function,
                 args.workers,
+                args.width,
             )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
         colors = parallel_extract_colors(
             args.input_video_path,
             frame_count,
-            args.width,
             dominant_color_function,
             MAX_PROCESSES,
+            args.width,
         )
 
     # Generate the appropriate type of barcode

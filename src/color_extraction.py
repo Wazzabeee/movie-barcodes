@@ -3,18 +3,6 @@ from sklearn.cluster import KMeans
 import cv2
 
 
-def get_dominant_color_avg(frame: np.ndarray) -> np.ndarray:
-    """
-    Gets the dominant color of a frame using simple averaging.
-
-    :param np.ndarray frame: The frame as a NumPy array.
-    :return: Dominant color as a NumPy array.
-    """
-    avg_color_per_row = np.average(frame, axis=0)
-    avg_color = np.average(avg_color_per_row, axis=0)
-    return avg_color
-
-
 def get_dominant_color_mean(frame: np.ndarray) -> np.ndarray:
     """
     Gets the dominant color of a frame using OpenCV's mean function.

@@ -9,6 +9,10 @@ class TestVideoProcessing(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        """
+        Set up the test case.
+        :return: None
+        """
         self.video_path = "dummy_video.mp4"
         self.start_frame = 0
         self.end_frame = 49
@@ -16,6 +20,11 @@ class TestVideoProcessing(unittest.TestCase):
 
     @staticmethod
     def mock_color_extractor(frame):
+        """
+        Mock color extractor function.
+        :param frame:
+        :return: frame
+        """
         return frame
 
     @patch("src.video_processing.cv2.VideoCapture")

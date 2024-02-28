@@ -8,10 +8,9 @@ def generate_circular_barcode(colors: list, img_size: int, scale_factor: int = 1
     """
     Generate a circular barcode from the list of colors.
 
-    :param colors: (list) List of RGB colors.
-    :param img_size: (int) The size of the square image (both width and height).
-    :param scale_factor: (int) The scale factor to use when generating the barcode. Default is 10.
-
+    :param list colors: List of RGB colors.
+    :param int img_size: The size of the square image (both width and height).
+    :param int scale_factor: The scale factor to use when generating the barcode. Default is 10.
     :return: np.ndarray: Circular barcode image.
     """
     high_res_img_size = img_size * scale_factor
@@ -46,11 +45,10 @@ def generate_barcode(
     """
     Generate a barcode image based on dominant colors of video frames.
 
-    :param colors: (list) List of dominant colors from video frames.
-    :param frame_height: (int) The height of the barcode image.
-    :param frame_count: (int) The total number of frames in the video.
-    :param frame_width: (int, optional) The width of the barcode image. If not specified, defaults to frame_count.
-
+    :param list colors: List of dominant colors from video frames.
+    :param int frame_height: The height of the barcode image.
+    :param int frame_count: The total number of frames in the video.
+    :param Optional[int] frame_width: The width of the barcode image. If not specified, defaults to frame_count.
     :return: np.ndarray: A barcode image.
     """
     if frame_width:  # If frame_width is specified, generate a barcode with the given width

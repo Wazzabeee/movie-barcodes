@@ -23,10 +23,11 @@ MIN_FRAME_COUNT = 2
 def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
     """
     Generate and save the barcode image based on the specified method.
-    :param args:
-    :param dominant_color_function:
-    :param method:
-    :return:
+
+    :param args: argparse.Namespace object containing the command-line arguments
+    :param dominant_color_function: The function to extract the dominant color from a frame
+    :param method: The method used to extract the dominant color
+    :return: None
     """
     start_time = time.time()
 
@@ -92,8 +93,9 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
 def main(args: argparse.Namespace) -> None:
     """
     Main function to generate a barcode from a video file.
-    :param args:
-    :return:
+
+    :param args: argparse.Namespace object containing the command-line arguments
+    :return: None
     """
     # Check if the input video file exists
     _, frame_count, _, _ = load_video(args.input_video_path)

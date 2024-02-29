@@ -133,7 +133,7 @@ if __name__ == "__main__":
         "--destination_path",
         type=str,
         nargs="?",
-        help="Path to save the output image. If not provided, the image will be saved in a default " "location.",
+        help="Path to save the output image. If not provided, the image will be saved in a default location.",
         default=None,
     )
     parser.add_argument(

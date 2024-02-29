@@ -5,16 +5,16 @@ import time
 from typing import Callable
 from os import cpu_count, path
 
-from src.barcode_generation import generate_circular_barcode, generate_barcode
+from .barcode_generation import generate_circular_barcode, generate_barcode
 
-from src.utility import (
+from .utility import (
     save_barcode_image,
     get_dominant_color_function,
     format_time,
     get_video_properties,
     validate_args,
 )
-from src.video_processing import load_video, extract_colors, parallel_extract_colors
+from .video_processing import load_video, extract_colors, parallel_extract_colors
 
 MAX_PROCESSES = cpu_count() or 1
 MIN_FRAME_COUNT = 2
@@ -23,10 +23,11 @@ MIN_FRAME_COUNT = 2
 def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
     """
     Generate and save the barcode image based on the specified method.
-    :param args:
-    :param dominant_color_function:
-    :param method:
-    :return:
+
+    :param args: argparse.Namespace object containing the command-line arguments
+    :param dominant_color_function: The function to extract the dominant color from a frame
+    :param method: The method used to extract the dominant color
+    :return: None
     """
     start_time = time.time()
 
@@ -42,26 +43,26 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
                 args.input_video_path,
                 0,
                 frame_count - 1,
-                args.width,
                 dominant_color_function,
+                args.width,
             )
         else:
             # Perform parallel processing with the user-specified number of workers
             colors = parallel_extract_colors(
                 args.input_video_path,
                 frame_count,
-                args.width,
                 dominant_color_function,
                 args.workers,
+                args.width,
             )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
         colors = parallel_extract_colors(
             args.input_video_path,
             frame_count,
-            args.width,
             dominant_color_function,
             MAX_PROCESSES,
+            args.width,
         )
 
     # Generate the appropriate type of barcode
@@ -92,8 +93,9 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
 def main(args: argparse.Namespace) -> None:
     """
     Main function to generate a barcode from a video file.
-    :param args:
-    :return:
+
+    :param args: argparse.Namespace object containing the command-line arguments
+    :return: None
     """
     # Check if the input video file exists
     _, frame_count, _, _ = load_video(args.input_video_path)
@@ -126,12 +128,12 @@ if __name__ == "__main__":
     logging.info("\n%s\n", header_msg)
 
     parser = argparse.ArgumentParser(description="Generate a color barcode from a video file.")
-    parser.add_argument("input_video_path", type=str, help="Path to the video file.")
+    parser.add_argument("--input_video_path", type=str, help="Path to the video file.")
     parser.add_argument(
         "--destination_path",
         type=str,
         nargs="?",
-        help="Path to save the output image. If not provided, the image will be saved in a default " "location.",
+        help="Path to save the output image. If not provided, the image will be saved in a default location.",
         default=None,
     )
     parser.add_argument(

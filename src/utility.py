@@ -17,6 +17,16 @@ from .color_extraction import (
 def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int, MIN_FRAME_COUNT: int) -> None:
     """
     Validate command-line arguments for logical errors.
+
+    :param argparse.Namespace args: The command-line arguments.
+    :param int frame_count: The number of frames in the video.
+    :param int MAX_PROCESSES: The maximum number of processes to use.
+    :param int MIN_FRAME_COUNT: The minimum number of frames required in the video.
+    :return: None
+    :raises FileNotFoundError: If the input video file does not exist.
+    :raises ValueError: If the video file has an invalid extension, the destination path is not writable, the number of
+        workers is invalid, the width is invalid, the frame count is invalid, or the method is invalid.
+    :raises PermissionError: If the destination path is not writable.
     """
     # Check if input video file exists
     if not path.exists(args.input_video_path):

@@ -19,8 +19,9 @@ class TestBarcodeGeneration(unittest.TestCase):
         self.frame_height = 2
         self.frame_count = 2
         self.img_size = 100
+        self.width = 1
 
-    def test_generate_barcode(self) -> None:
+    def test_generate_barcode_default(self) -> None:
         """
         Test the generate_barcode function.
         :return: None
@@ -31,6 +32,16 @@ class TestBarcodeGeneration(unittest.TestCase):
         self.assertEqual(
             barcode.shape, (self.frame_height, self.frame_count, 3)
         )  # Should match the input frame dimensions
+
+    def test_generate_barcode_with_width(self) -> None:
+        """
+        Test the generate_barcode function with a specified width.
+        :return: None
+        """
+        barcode = barcode_generation.generate_barcode(self.colors, self.frame_height, self.frame_count, self.width)
+
+        self.assertIsInstance(barcode, np.ndarray)
+        self.assertEqual(barcode.shape, (self.frame_height, self.width, 3))
 
     def test_generate_circular_barcode(self) -> None:
         """

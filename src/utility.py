@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 
-from src.color_extraction import (
+from .color_extraction import (
     get_dominant_color_mean,
     get_dominant_color_kmeans,
     get_dominant_color_hsv,

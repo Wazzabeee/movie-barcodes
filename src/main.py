@@ -5,16 +5,16 @@ import time
 from typing import Callable
 from os import cpu_count, path
 
-from src.barcode_generation import generate_circular_barcode, generate_barcode
+from .barcode_generation import generate_circular_barcode, generate_barcode
 
-from src.utility import (
+from .utility import (
     save_barcode_image,
     get_dominant_color_function,
     format_time,
     get_video_properties,
     validate_args,
 )
-from src.video_processing import load_video, extract_colors, parallel_extract_colors
+from .video_processing import load_video, extract_colors, parallel_extract_colors
 
 MAX_PROCESSES = cpu_count() or 1
 MIN_FRAME_COUNT = 2
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     logging.info("\n%s\n", header_msg)
 
     parser = argparse.ArgumentParser(description="Generate a color barcode from a video file.")
-    parser.add_argument("input_video_path", type=str, help="Path to the video file.")
+    parser.add_argument("--input_video_path", type=str, help="Path to the video file.")
     parser.add_argument(
         "--destination_path",
         type=str,

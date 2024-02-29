@@ -60,8 +60,8 @@ def parallel_extract_colors(
                 video_path,
                 i * frames_per_worker,
                 (i + 1) * frames_per_worker - 1,
-                target_frames_per_worker,
                 color_extractor,
+                target_frames_per_worker,
             )
             for i in range(workers)
         ]
@@ -71,8 +71,8 @@ def parallel_extract_colors(
                 video_path,
                 args[-1][1],
                 frame_count - 1,
-                target_frames - (workers - 1) * target_frames_per_worker,
                 color_extractor,
+                target_frames - (workers - 1) * target_frames_per_worker,
             )
 
         results = pool.starmap(extract_colors, args)
@@ -105,7 +105,10 @@ def extract_colors(
 
     # Calculate frame_skip based on target_frames
     total_frames = end_frame - start_frame + 1
-    frame_skip = total_frames // target_frames if target_frames else 1
+    if target_frames:
+        frame_skip = total_frames // target_frames
+    else:
+        frame_skip = 1
 
     colors = []
 

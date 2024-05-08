@@ -28,7 +28,7 @@ git clone https://github.com/Wazzabeee/movie-barcodes
 cd movie-barcodes
 
 # Install requirements
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 # Usage
 ## Sequential Processing

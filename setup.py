@@ -15,7 +15,7 @@ setup(
         "joblib==1.3.2",
         "numpy==1.26.0",
         "opencv-python==4.8.0.76",
-        "Pillow==10.0.1",
+        "Pillow==10.3.0",
         "scikit-learn==1.3.1",
         "scipy==1.11.2",
         "threadpoolctl==3.2.0",

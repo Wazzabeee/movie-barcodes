@@ -19,7 +19,7 @@ setup(
         "scikit-learn==1.3.1",
         "scipy==1.11.2",
         "threadpoolctl==3.2.0",
-        "tqdm==4.66.1",
+        "tqdm==4.66.3",
     ],
     extras_require={
         "lint": [

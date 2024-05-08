@@ -53,11 +53,11 @@ $ movie-barcodes --input_video_path "path/to/video"
 # Examples
 ## Sequential Processing
 ```python
-python main.py --input_video_path "path/to/video" --width 200 --workers 1
+python -m src.main --input_video_path "path/to/video" --width 200 --workers 1
 ```
 ## Parallel Processing
 ```python
-python main.py --input_video_path "path/to/video" --width 200 --workers 8
+python -m src.main --input_video_path "path/to/video" --width 200 --workers 8
 ```
 
 # Development Setup
@@ -81,7 +81,7 @@ $ pip install pytest
 $ pytest tests/
 
 # Run package locally
-$ python -m src.main [-s] [-o] [-h] input_directory
+$ python -m src.main --input_video_path "path_to_video.mp4"
 ```
 
 # Todo

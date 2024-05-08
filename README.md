@@ -1,4 +1,4 @@
-# Movie Color Barcodes
+# Movie Barcodes
 The Lodger: A Story of the London Fog (1927) - Alfred Hitchcock - [Public Domain](https://archive.org/details/TheLodgerAStoryOfTheLondonFog_579)
 
 Circular Barcode           |  Horizontal Barcode
@@ -22,10 +22,10 @@ Designed with performance in mind, the application supports both sequential and 
 # Installation
 ```bash
 # Clone this repository
-git clone https://github.com/Wazzabeee/Movie-Color-Barcodes
+git clone https://github.com/Wazzabeee/movie-barcodes
 
 # Go into the repository
-cd movie_color_barcode
+cd movie-barcodes
 
 # Install requirements
 pip3 install -r requirements.txt

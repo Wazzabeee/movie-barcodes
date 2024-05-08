@@ -1,6 +1,12 @@
 name: CI Pipeline
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
 
 jobs:
   test:
@@ -37,3 +43,33 @@ jobs:
         pylint src/ tests/ --rcfile=setup.cfg --fail-under=9 --generated-members=cv2.*
         mypy -p src -p tests --ignore-missing-imports --disallow-incomplete-defs
     continue-on-error: true
+
+  release:
+    needs: [ test, good-practices ]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: auto
+          MAJOR_STRING_TOKEN: '^BREAKING CHANGE:'
+          MINOR_STRING_TOKEN: '^feat:'
+          PATCH_STRING_TOKEN: '^fix:'
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.5'
+      - name: Build and publish
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          pip install setuptools wheel twine
+          python setup.py sdist bdist_wheel
+          twine upload dist/*

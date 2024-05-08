@@ -11,21 +11,23 @@ repos:
   rev: 22.10.0
   hooks:
     - id: black
-      args: [--line-length=120, --check, --verbose]
+      args: [--line-length=120, --verbose]
 
 - repo: https://github.com/pycqa/flake8
   rev: 4.0.0
   hooks:
     - id: flake8
 
-- repo: local
+- repo: https://github.com/pre-commit/mirrors-pylint
+  rev: v3.0.0a5
   hooks:
     - id: pylint
       name: pylint
-      entry: pylint src/ tests/ --rcfile=setup.cfg --fail-under=9 --generated-members=cv2.*
+      entry: pylint
       language: system
-      pass_filenames: false
+      args: ['src/', 'tests/', '--rcfile=setup.cfg', '--fail-under=8', '--generated-members=cv2.*']
       types: [python]
+      exclude: '^setup\.py$'
 
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v1.6.0

@@ -22,15 +22,23 @@ setup(
         "tqdm==4.66.1",
     ],
     extras_require={
-        "lint": ["pylint==2.6.0", "mypy==1.6.0", "flake8==4.0.0", "black==24.3.0", "types-Pillow", "types-pytz",
-                 "types-tqdm", "types-PyYAML"],
+        "lint": [
+            "pylint==2.6.0",
+            "mypy==1.6.0",
+            "flake8==4.0.0",
+            "black==24.3.0",
+            "types-Pillow",
+            "types-pytz",
+            "types-tqdm",
+            "types-PyYAML",
+        ],
         "dev": ["pytest", "pre-commit"],
     },
     author="Clément Delteil",
     author_email="clement45.delteil45@gmail.com",
-    description="Compress every frame of a movie in a single color barcode. "
-                "Transform entire movies into stunning single-barcode visualizations. "
-                "Capture the essence of cinematic storytelling through dominant color extraction from each frame.",
+    description="Compress every frame of a movie in a single color barcode."
+    "Transform entire movies into stunning single-barcode visualizations."
+    "Capture the essence of cinematic storytelling through dominant color extraction from each frame.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/Wazzabeee/movie-barcodes",

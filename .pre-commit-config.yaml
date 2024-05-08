@@ -18,8 +18,8 @@ repos:
   hooks:
     - id: flake8
 
-- repo: https://github.com/pre-commit/mirrors-pylint
-  rev: v3.0.0a5
+- repo: https://github.com/pylint-dev/pylint
+  rev: v3.1.0
   hooks:
     - id: pylint
       name: pylint

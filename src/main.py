@@ -90,35 +90,11 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     video.release()
 
 
-def main(args: argparse.Namespace) -> None:
+def main() -> None:
     """
     Main function to generate a barcode from a video file.
-
-    :param args: argparse.Namespace object containing the command-line arguments
-    :return: None
     """
-    # Check if the input video file exists
-    _, frame_count, _, _ = load_video(args.input_video_path)
-
-    # Check if the arguments are valid
-    validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
-
-    # Get a list of all available methods
-    methods = ["avg", "hsv", "bgr", "kmeans"]
-
-    # Check if all_methods flag is set
-    if args.all_methods:
-        for method in methods:
-            # Generate barcodes for each method
-            dominant_color_function = get_dominant_color_function(method)
-            generate_and_save_barcode(args, dominant_color_function, method)
-    else:
-        # Use the specified method to generate barcode
-        dominant_color_function = get_dominant_color_function(args.method)
-        generate_and_save_barcode(args, dominant_color_function, args.method)
-
-
-if __name__ == "__main__":
+    # Logging configuration
     logging.basicConfig(
         filename=path.join("..", "logs.txt"),
         level=logging.INFO,
@@ -127,8 +103,9 @@ if __name__ == "__main__":
     header_msg = "=" * 40 + " NEW RUN " + "=" * 40
     logging.info("\n%s\n", header_msg)
 
+    # Argument parser setup
     parser = argparse.ArgumentParser(description="Generate a color barcode from a video file.")
-    parser.add_argument("--input_video_path", type=str, help="Path to the video file.")
+    parser.add_argument("--input_video_path", type=str, required=True, help="Path to the video file.")
     parser.add_argument(
         "--destination_path",
         type=str,
@@ -146,16 +123,15 @@ if __name__ == "__main__":
         "--method",
         choices=["avg", "kmeans", "hsv", "bgr"],
         default="avg",
-        help="Method to extract dominant color: avg (average), kmeans (K-Means clustering), hsv (HSV "
-        "histogram), or bgr (BGR histogram). Default is avg.",
+        help="Method to extract dominant color: avg (average), kmeans (K-Means clustering), hsv (HSV histogram), "
+        "or bgr (BGR histogram). Default is avg.",
     )
     parser.add_argument(
         "--workers",
         type=int,
         default=None,
-        help="Number of workers for parallel processing. Default behavior uses all available CPU cores."
-        "Setting this to 1 will use sequential processing. Do not specify a value greater than "
-        "the number of available CPU cores.",
+        help="Number of workers for parallel processing. Default behavior uses all available CPU cores. Setting this "
+        "to 1 will use sequential processing.",
     )
     parser.add_argument(
         "--width",
@@ -167,15 +143,33 @@ if __name__ == "__main__":
         "--output_name",
         type=str,
         nargs="?",
-        help="Custom name for the output barcode image. If not provided, a name will be automatically " "generated.",
+        help="Custom name for the output barcode image. If not provided, a name will be automatically generated.",
         default=None,
     )
     parser.add_argument(
         "--all_methods",
-        type=bool,
-        default=False,
-        help="If provided, all methods to extract dominant color will be used to create barcodes. "
-        "Overrides --method argument.",
+        action="store_true",
+        help="If provided, all methods to extract dominant color will be used to create barcodes. Overrides --method "
+        "argument.",
     )
-    arguments = parser.parse_args()
-    main(arguments)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Validate and process video file
+    _, frame_count, _, _ = load_video(args.input_video_path)
+    validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
+
+    # Choose the method to generate barcode
+    methods = ["avg", "hsv", "bgr", "kmeans"]
+    if args.all_methods:
+        for method in methods:
+            dominant_color_function = get_dominant_color_function(method)
+            generate_and_save_barcode(args, dominant_color_function, method)
+    else:
+        dominant_color_function = get_dominant_color_function(args.method)
+        generate_and_save_barcode(args, dominant_color_function, args.method)
+
+
+if __name__ == "__main__":
+    main()

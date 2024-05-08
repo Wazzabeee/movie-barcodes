@@ -1,31 +1,20 @@
-import argparse
 import unittest
 import os
 import glob
+import sys
+from unittest.mock import patch
 
 from src import main
 
 
 class TestIntegration(unittest.TestCase):
     def setUp(self) -> None:
-        """
-        Set up the test case.
-        """
-        # Recreate the parser with minimal necessary setup
-        self.parser = argparse.ArgumentParser(description="Test Parser")
-        self.parser.add_argument("--input_video_path", type=str)
-        self.parser.add_argument("--destination_path", type=str, nargs="?", default=None)
-        self.parser.add_argument("--barcode_type", choices=["horizontal", "circular"], default="horizontal")
-        self.parser.add_argument("--method", choices=["avg", "kmeans", "hsv", "bgr"], default="avg")
-        self.parser.add_argument("--workers", type=int, default=None)
-        self.parser.add_argument("--width", type=int, default=None)
-        self.parser.add_argument("--output_name", type=str, nargs="?", default=None)
-        self.parser.add_argument("--all_methods", type=bool, default=False)
-
         self.input_video_path = "tests/sample.mp4"
 
     def _run_test(self, barcode_type, workers, width=None):
+        # Build the command line arguments list
         args = [
+            "movie-barcodes",
             "--input_video_path",
             self.input_video_path,
             "--barcode_type",
@@ -38,11 +27,9 @@ class TestIntegration(unittest.TestCase):
         if width is not None:
             args.extend(["--width", str(width)])
 
-        # Parse args using the recreated parser
-        parsed_args = self.parser.parse_args(args)
-
-        # Execute the program with the parsed Namespace object
-        main.main(parsed_args)
+        # Use patch to simulate command line arguments
+        with patch.object(sys, "argv", args):
+            main.main()  # Call the main function which now internally handles args
 
     def test_horizontal_1_worker_default_width(self):
         self._run_test("horizontal", 1)

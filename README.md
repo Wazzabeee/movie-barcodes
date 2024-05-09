@@ -9,6 +9,7 @@ Circular Barcode           |  Horizontal Barcode
 ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![Status](https://img.shields.io/pypi/status/movie-barcodes.svg)
+![Codecov](https://codecov.io/gh/Wazzabeee/movie-barcodes/branch/main/graph/badge.svg)
 ![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)
 ![Black](https://img.shields.io/badge/code%20style-black-000000.svg)
 

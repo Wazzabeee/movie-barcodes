@@ -5,8 +5,12 @@ Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
 ![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_circular.png?raw=true)  |  ![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_horizontal.png?raw=true)
 
-![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes) ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
+![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes)
+![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
+![Status](https://img.shields.io/pypi/status/movie-barcodes.svg)
+![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)
+![Black](https://img.shields.io/badge/code%20style-black-000000.svg)
 
 # Overview
 

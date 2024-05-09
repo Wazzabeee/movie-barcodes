@@ -65,10 +65,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
+          VERBOSE: true
           DEFAULT_BUMP: auto
-          MAJOR_STRING_TOKEN: '^BREAKING CHANGE:'
-          MINOR_STRING_TOKEN: '^feat:'
-          PATCH_STRING_TOKEN: '^fix:'
+          MAJOR_STRING_TOKEN: 'BREAKING CHANGE:'
+          MINOR_STRING_TOKEN: 'feat:'
+          PATCH_STRING_TOKEN: 'fix:'
       - name: Set up Python
         uses: actions/setup-python@v2
         with:

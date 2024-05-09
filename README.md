@@ -3,7 +3,7 @@ The Lodger: A Story of the London Fog (1927) - Alfred Hitchcock - [Public Domain
 
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_circular.png?raw=true)  |  ![](https://github.com/Wazzabeee/movie_color_barcode/blob/main/examples/thelodgerastoryofthelondonfog_horizontal.png?raw=true)
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodgerastoryofthelondonfog_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodgerastoryofthelondonfog_horizontal.png)
 
 ![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes)
 ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)

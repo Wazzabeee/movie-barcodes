@@ -35,7 +35,7 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
 
     valid_extensions = [".mp4", ".webm"]
     if path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
-        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4).")
+        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm).")
 
     # Check if the destination path is writable
     if args.destination_path is not None:

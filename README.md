@@ -24,6 +24,7 @@ Designed with performance in mind, the application supports both sequential and 
 # Features
 - Horizontal and Circular Barcodes
 - Fast frame skipping for efficiency.
+- Supports `.mp4` & `.webm` files
 - Multiprocessing support for parallel processing.
 - Customizable color extraction function (Average or K-means).
 - Progress tracking and estimated time remaining.
@@ -58,11 +59,11 @@ $ movie-barcodes -i "path/to/video.mp4"
 # Examples
 ## Sequential Processing
 ```python
-python -m src.main --input_video_path "path/to/video" --width 200 --workers 1
+python -m src.main -i "path/to/video" --width 200 -w 1
 ```
 ## Parallel Processing
 ```python
-python -m src.main --input_video_path "path/to/video" --width 200 --workers 8
+python -m src.main -i "path/to/video" --width 200 -w 8
 ```
 
 # Development Setup
@@ -86,7 +87,7 @@ $ pip install pytest
 $ pytest tests/
 
 # Run package locally
-$ python -m src.main --input_video_path "path_to_video.mp4"
+$ python -m src.main -i "path_to_video.mp4"
 ```
 
 # Todo
@@ -102,16 +103,16 @@ $ python -m src.main --input_video_path "path_to_video.mp4"
 # More Examples
 ## Your Name / Kimi no Na wa / 君の名は (2016) - Makoto Shinkai
 ```python
-movie-barcodes --input_video_path "Your Name.mp4" --barcode_type "circular"
-movie-barcodes --input_video_path "Your Name.mp4" --width 1920 --barcode_type "horizontal"
+movie-barcodes -i "Your Name.mp4" -t "circular"
+movie-barcodes -i "Your Name.mp4" --width 1920 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_horizontal.png)
 ## Drive (2011) - Nicolas Winding Refn
 ```python
-movie-barcodes --input_video_path "Drive.mp4" --barcode_type "circular"
-movie-barcodes --input_video_path "Drive.mp4" --width 1920 --barcode_type "horizontal"
+movie-barcodes -i "Drive.mp4" -t "circular"
+movie-barcodes -i "Drive.mp4" --width 1920 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:

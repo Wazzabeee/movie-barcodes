@@ -96,9 +96,25 @@ $ python -m src.main --input_video_path "path_to_video.mp4"
 - [ ] Add option to modify the barcode's height (current is frame's height)
 - [ ] Ensure the software can handle various video formats beyond MP4
 - [ ] Allow the software to process multiple videos at once
-- [ ] Add examples to Readme
 - [ ] Develop POC on Hugging Face Space
+- [ ] Remove the logs creation when using package
 
 # More Examples
-## Circular Barcodes
-## Horizontal Barcodes
+## Your Name (Kimi no Nawa)
+```python
+movie-barcodes --input_video_path "Your Name.mp4" --barcode_type "circular"
+movie-barcodes --input_video_path "Your Name.mp4" --width 1920 --barcode_type "horizontal"
+```
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_horizontal.png)
+## Drive
+```python
+movie-barcodes --input_video_path "Drive.mp4" --barcode_type "circular"
+movie-barcodes --input_video_path "Drive.mp4" --width 1920 --barcode_type "horizontal"
+```
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_avg_horizontal.png)
+
+

@@ -1,4 +1,5 @@
 import argparse
+import logging
 from os import path, access, W_OK, makedirs
 from typing import Callable
 import cv2
@@ -34,7 +35,7 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
 
     valid_extensions = [".mp4", ".webm"]
     if path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
-        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4).")
+        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm).")
 
     # Check if the destination path is writable
     if args.destination_path is not None:
@@ -156,6 +157,7 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
         image = Image.fromarray(barcode, "RGB")
 
     image.save(destination_path)
+    logging.info("File saved at '%s'", destination_path)
 
 
 def ensure_directory(directory_name: str) -> None:

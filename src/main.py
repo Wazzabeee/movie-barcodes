@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 import time
 
 from typing import Callable
@@ -96,17 +97,18 @@ def main() -> None:
     """
     # Logging configuration
     logging.basicConfig(
-        filename=path.join("..", "logs.txt"),
+        stream=sys.stdout,
         level=logging.INFO,
         format="%(asctime)s - %(message)s",
     )
     header_msg = "=" * 40 + " NEW RUN " + "=" * 40
-    logging.info("\n%s\n", header_msg)
+    logging.info("%s", header_msg)
 
     # Argument parser setup
     parser = argparse.ArgumentParser(description="Generate a color barcode from a video file.")
-    parser.add_argument("--input_video_path", type=str, required=True, help="Path to the video file.")
+    parser.add_argument("-i", "--input_video_path", type=str, required=True, help="Path to the video file.")
     parser.add_argument(
+        "-d",
         "--destination_path",
         type=str,
         nargs="?",
@@ -114,12 +116,14 @@ def main() -> None:
         default=None,
     )
     parser.add_argument(
+        "-t",
         "--barcode_type",
         choices=["horizontal", "circular"],
         default="horizontal",
         help="Type of barcode to generate: horizontal or circular. Default is horizontal.",
     )
     parser.add_argument(
+        "-m",
         "--method",
         choices=["avg", "kmeans", "hsv", "bgr"],
         default="avg",
@@ -127,6 +131,7 @@ def main() -> None:
         "or bgr (BGR histogram). Default is avg.",
     )
     parser.add_argument(
+        "-w",
         "--workers",
         type=int,
         default=None,
@@ -140,6 +145,7 @@ def main() -> None:
         help="Width of the output image. If not provided, the width will be the same as the video",
     )
     parser.add_argument(
+        "-n",
         "--output_name",
         type=str,
         nargs="?",
@@ -147,6 +153,7 @@ def main() -> None:
         default=None,
     )
     parser.add_argument(
+        "-a",
         "--all_methods",
         action="store_true",
         help="If provided, all methods to extract dominant color will be used to create barcodes. Overrides --method "

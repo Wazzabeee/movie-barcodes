@@ -24,6 +24,7 @@ Designed with performance in mind, the application supports both sequential and 
 # Features
 - Horizontal and Circular Barcodes
 - Fast frame skipping for efficiency.
+- Supports `.mp4` & `.webm` files
 - Multiprocessing support for parallel processing.
 - Customizable color extraction function (Average or K-means).
 - Progress tracking and estimated time remaining.
@@ -34,35 +35,35 @@ Designed with performance in mind, the application supports both sequential and 
 $ pip install movie-barcodes
 
 # Generate a movie barcode
-$ movie-barcodes --input_video_path "path/to/video"
+$ movie-barcodes -i "path/to/video.mp4"
 ```
 
 ***Mandatory Arguments:***
-- `input_video_path`: The path to the input video file. (Required, type: str)
+- `-i`, `--input_video_path`: The path to the input video file. (Required, type: str)
 
 ***Optional Arguments:***
-- `--destination_path`: The path where the output image will be saved. If not provided, defaults to a pre-defined location. (Optional, type: str)
+- `-d`, `--destination_path`: The path where the output image will be saved. If not provided, defaults to a pre-defined location. (Optional, type: str)
 
-- `--barcode_type`: The type of barcode to generate. Options are horizontal or circular. Default is horizontal. (Optional, type: str)
+- `-t`, `--barcode_type`: The type of barcode to generate. Options are horizontal or circular. Default is horizontal. (Optional, type: str)
 
-- `--method`: The algorithm for extracting the dominant color from frames. Options are avg (average), kmeans (K-Means clustering), hsv (HSV histogram), and bgr (BGR histogram). Default is avg. (Optional, type: str)
+- `-m`, `--method`: The algorithm for extracting the dominant color from frames. Options are avg (average), kmeans (K-Means clustering), hsv (HSV histogram), and bgr (BGR histogram). Default is avg. (Optional, type: str)
 
-- `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
+- `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
 
 - `--width`: The output image's width in pixels. If not specified, the width will be the same as the input video. (Optional, type: int)
 
-- `--output_name`: Custom name for the output barcode image. If not provided, a name will be automatically generated. (Optional, type: str)
+- `-n`, `--output_name`: Custom name for the output barcode image. If not provided, a name will be automatically generated. (Optional, type: str)
 
-- `--all_methods`: If set to True, all methods for color extraction will be employed, overriding the --method argument. Default is False. (Optional, type: bool)
+- `-a`, `--all_methods`: If set to True, all methods for color extraction will be employed, overriding the --method argument. Default is False. (Optional, type: bool)
 
 # Examples
 ## Sequential Processing
 ```python
-python -m src.main --input_video_path "path/to/video" --width 200 --workers 1
+python -m src.main -i "path/to/video" --width 200 -w 1
 ```
 ## Parallel Processing
 ```python
-python -m src.main --input_video_path "path/to/video" --width 200 --workers 8
+python -m src.main -i "path/to/video" --width 200 -w 8
 ```
 
 # Development Setup
@@ -86,7 +87,7 @@ $ pip install pytest
 $ pytest tests/
 
 # Run package locally
-$ python -m src.main --input_video_path "path_to_video.mp4"
+$ python -m src.main -i "path_to_video.mp4"
 ```
 
 # Todo
@@ -100,18 +101,18 @@ $ python -m src.main --input_video_path "path_to_video.mp4"
 - [ ] Remove the logs creation when using package
 
 # More Examples
-## Your Name (Kimi no Nawa)
+## Your Name / Kimi no Na wa / 君の名は (2016) - Makoto Shinkai
 ```python
-movie-barcodes --input_video_path "Your Name.mp4" --barcode_type "circular"
-movie-barcodes --input_video_path "Your Name.mp4" --width 1920 --barcode_type "horizontal"
+movie-barcodes -i "Your Name.mp4" -t "circular"
+movie-barcodes -i "Your Name.mp4" --width 1920 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_horizontal.png)
-## Drive
+## Drive (2011) - Nicolas Winding Refn
 ```python
-movie-barcodes --input_video_path "Drive.mp4" --barcode_type "circular"
-movie-barcodes --input_video_path "Drive.mp4" --width 1920 --barcode_type "horizontal"
+movie-barcodes -i "Drive.mp4" -t "circular"
+movie-barcodes -i "Drive.mp4" --width 1920 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:

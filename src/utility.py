@@ -1,4 +1,5 @@
 import argparse
+import logging
 from os import path, access, W_OK, makedirs
 from typing import Callable
 import cv2
@@ -156,6 +157,7 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
         image = Image.fromarray(barcode, "RGB")
 
     image.save(destination_path)
+    logging.info("File saved at '%s'", destination_path)
 
 
 def ensure_directory(directory_name: str) -> None:

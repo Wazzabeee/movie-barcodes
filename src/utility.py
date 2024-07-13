@@ -61,6 +61,15 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
                 f"video."
             )
 
+    if args.height is not None:
+        if args.height <= 0:
+            raise ValueError("Height must be greater than 0.")
+        if args.height > frame_count:
+            raise ValueError(
+                f"Specified height ({args.height}) cannot be greater than the number of frames ({frame_count}) in the "
+                f"video."
+            )
+
     if frame_count < MIN_FRAME_COUNT:
         raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
 

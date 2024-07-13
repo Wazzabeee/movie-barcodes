@@ -26,6 +26,7 @@ class TestUtility(unittest.TestCase):
             width=200,
             all_methods=False,
             method="avg",
+            height=None,
         )
         self.frame_count = 300
         self.MAX_PROCESSES = 8
@@ -101,6 +102,19 @@ class TestUtility(unittest.TestCase):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
         self.args.width = self.frame_count + 1  # Testing for > frame_count
+        with self.assertRaises(ValueError):
+            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+
+    def test_invalid_height(self) -> None:
+        """
+        Test that validate_args raises a ValueError when the height is invalid.
+        :return: None
+        """
+        self.args.height = 0  # Testing for <= 0
+        with self.assertRaises(ValueError):
+            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+
+        self.args.height = self.frame_count + 1  # Testing for > frame_count
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 

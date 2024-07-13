@@ -68,10 +68,14 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
 
     # Generate the appropriate type of barcode
     if args.barcode_type == "circular":
-        # Assuming image width = video frame width for circular barcodes
         barcode = generate_circular_barcode(colors, frame_width)
     else:
-        barcode = generate_barcode(colors, frame_height, frame_count, args.width)
+        # if user specified specific height
+        if args.height is not None:
+            barcode = generate_barcode(colors, args.height, frame_count, args.width)
+        # else we use the movie's height for the barcode image
+        else:
+            barcode = generate_barcode(colors, frame_width, frame_count, args.width)
 
     base_name = path.basename(args.input_video_path)
     file_name_without_extension = path.splitext(base_name)[0]
@@ -143,6 +147,12 @@ def main() -> None:
         type=int,
         default=None,
         help="Width of the output image. If not provided, the width will be the same as the video",
+    )
+    parser.add_argument(
+        "--height",
+        type=int,
+        default=None,
+        help="Height of the output image. If not provided, the height will be the same as the video",
     )
     parser.add_argument(
         "-n",

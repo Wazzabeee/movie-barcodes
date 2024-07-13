@@ -52,6 +52,8 @@ $ movie-barcodes -i "path/to/video.mp4"
 
 - `--width`: The output image's width in pixels. If not specified, the width will be the same as the input video. (Optional, type: int)
 
+- `--height`: The output image's height in pixels. If not specified, the height will be the same as the input video. (Optional, type: int)
+
 - `-n`, `--output_name`: Custom name for the output barcode image. If not provided, a name will be automatically generated. (Optional, type: str)
 
 - `-a`, `--all_methods`: If set to True, all methods for color extraction will be employed, overriding the --method argument. Default is False. (Optional, type: bool)

@@ -224,6 +224,7 @@ class TestUtility(unittest.TestCase):
         utility.get_dominant_color_kmeans = Mock(name="get_dominant_color_kmeans")
         utility.get_dominant_color_hsv = Mock(name="get_dominant_color_hsv")
         utility.get_dominant_color_bgr = Mock(name="get_dominant_color_bgr")
+        utility.get_smoothed_frame = Mock(name="get_smoothed_frame")
 
         self.assertEqual(utility.get_dominant_color_function("avg"), utility.get_dominant_color_mean)
         self.assertEqual(
@@ -232,6 +233,11 @@ class TestUtility(unittest.TestCase):
         )
         self.assertEqual(utility.get_dominant_color_function("hsv"), utility.get_dominant_color_hsv)
         self.assertEqual(utility.get_dominant_color_function("bgr"), utility.get_dominant_color_bgr)
+        self.assertEqual(utility.get_dominant_color_function("smoothed"), utility.get_smoothed_frame)
+
+        # Test for invalid method
+        with self.assertRaises(ValueError):
+            utility.get_dominant_color_function("invalid_method")
 
     @patch("src.utility.path.getsize")
     def test_get_video_properties(self, mock_getsize: MagicMock) -> None:

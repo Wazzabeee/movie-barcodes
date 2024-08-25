@@ -3,6 +3,18 @@ from sklearn.cluster import KMeans
 import cv2
 
 
+def get_smoothed_frame(frame: np.ndarray) -> np.ndarray:
+    """
+    Smoothes the given frame with a two-step resize process.
+
+    :param np.ndarray frame: frame to be smoothed.
+    :return: np.ndarray: Smoothed frame.
+    """
+    original_height = frame.shape[0]
+    frame = cv2.resize(frame, (1, 1))  # First resize to 1x1
+    return cv2.resize(frame, (1, original_height)).reshape(original_height, 1, 3).astype(np.uint8)
+
+
 def get_dominant_color_mean(frame: np.ndarray) -> np.ndarray:
     """
     Gets the dominant color of a frame using OpenCV's mean function.

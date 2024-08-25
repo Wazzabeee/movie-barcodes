@@ -12,6 +12,7 @@ from .color_extraction import (
     get_dominant_color_kmeans,
     get_dominant_color_hsv,
     get_dominant_color_bgr,
+    get_smoothed_frame,
 )
 
 
@@ -94,6 +95,8 @@ def get_dominant_color_function(method: str) -> Callable:
         return get_dominant_color_hsv
     if method == "bgr":
         return get_dominant_color_bgr
+    if method == "smoothed":
+        return get_smoothed_frame
 
     raise ValueError(f"Invalid method: {method}")
 

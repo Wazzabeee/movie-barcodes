@@ -46,7 +46,7 @@ $ movie-barcodes -i "path/to/video.mp4"
 
 - `-t`, `--barcode_type`: The type of barcode to generate. Options are horizontal or circular. Default is horizontal. (Optional, type: str)
 
-- `-m`, `--method`: The algorithm for extracting the dominant color from frames. Options are avg (average), kmeans (K-Means clustering), hsv (HSV histogram), and bgr (BGR histogram). Default is avg. (Optional, type: str)
+- `-m`, `--method`: The algorithm for extracting the dominant color from frames. Options are avg (average), kmeans (K-Means clustering), hsv (HSV histogram), bgr (BGR histogram) and smoothed versions. Default is avg. (Optional, type: str)
 
 - `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
 
@@ -103,6 +103,14 @@ $ python -m src.main -i "path_to_video.mp4"
 - [ ] Remove the logs creation when using package
 
 # More Examples
+## Barbie (2023) - Greta Gerwig
+```python
+movie-barcodes -i "barbie.mp4" -t "circular"
+movie-barcodes -i "barbie.mp4" --width 1920 -t "horizontal"
+```
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_horizontal.png)
 ## Your Name / Kimi no Na wa / 君の名は (2016) - Makoto Shinkai
 ```python
 movie-barcodes -i "Your Name.mp4" -t "circular"

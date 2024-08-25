@@ -70,12 +70,9 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     if args.barcode_type == "circular":
         barcode = generate_circular_barcode(colors, frame_width)
     else:
-        # if user specified specific height
-        if args.height is not None:
-            barcode = generate_barcode(colors, args.height, frame_count, args.width)
-        # else we use the movie's height for the barcode image
-        else:
-            barcode = generate_barcode(colors, frame_width, frame_count, args.width)
+        # Use the specified height if provided, otherwise use the video frame height
+        barcode_height = args.height if args.height is not None else frame_height
+        barcode = generate_barcode(colors, barcode_height, frame_count, args.width)
 
     base_name = path.basename(args.input_video_path)
     file_name_without_extension = path.splitext(base_name)[0]
@@ -129,10 +126,10 @@ def main() -> None:
     parser.add_argument(
         "-m",
         "--method",
-        choices=["avg", "kmeans", "hsv", "bgr"],
+        choices=["avg", "kmeans", "hsv", "bgr", "smoothed"],
         default="avg",
         help="Method to extract dominant color: avg (average), kmeans (K-Means clustering), hsv (HSV histogram), "
-        "or bgr (BGR histogram). Default is avg.",
+        ",bgr (BGR histogram) or smoothed version (averaging the colors with two-step resize). Default is avg.",
     )
     parser.add_argument(
         "-w",
@@ -178,7 +175,7 @@ def main() -> None:
     validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
 
     # Choose the method to generate barcode
-    methods = ["avg", "hsv", "bgr", "kmeans"]
+    methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"]
     if args.all_methods:
         for method in methods:
             dominant_color_function = get_dominant_color_function(method)

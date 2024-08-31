@@ -61,7 +61,6 @@ def generate_barcode(
 ) -> np.ndarray:
     """
     Generate a barcode image based on dominant colors or smoothed frames of video frames.
-
     :param list colors: List of dominant colors or smoothed frames from video frames.
     :param int frame_height: The height of the barcode image.
     :param int frame_count: The total number of frames in the video.
@@ -85,9 +84,13 @@ def generate_barcode(
         if i < frame_width:
             if isinstance(color, np.ndarray) and color.ndim == 3 and color.shape[1] == 1:
                 # For smoothed frames
-                barcode[:, i] = cv2.resize(color, (1, frame_height)).reshape(frame_height, 3)
+                color_column = cv2.resize(color, (1, frame_height))
             else:
                 # For single color values
-                barcode[:, i] = color
+                color_column = np.full((frame_height, 1, 3), color, dtype=np.uint8)
+
+            # Convert to BGR (which will be interpreted as RGB when saved with PIL)
+            bgr_color = cv2.cvtColor(color_column, cv2.COLOR_RGB2BGR)
+            barcode[:, i] = bgr_color.reshape(frame_height, 3)
 
     return barcode

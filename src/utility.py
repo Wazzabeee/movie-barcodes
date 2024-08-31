@@ -34,9 +34,9 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
     if not path.exists(args.input_video_path):
         raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
 
-    valid_extensions = [".mp4", ".webm"]
+    valid_extensions = [".mp4", ".webm", ".mkv"]
     if path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
-        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm).")
+        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm, .mkv).")
 
     # Check if the destination path is writable
     if args.destination_path is not None:

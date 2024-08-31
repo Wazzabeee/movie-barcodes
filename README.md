@@ -24,7 +24,7 @@ Designed with performance in mind, the application supports both sequential and 
 # Features
 - Horizontal and Circular Barcodes
 - Fast frame skipping for efficiency.
-- Supports `.mp4` & `.webm` files
+- Supports `.mp4`, `.webm` & `.mkv` files
 - Multiprocessing support for parallel processing.
 - Customizable color extraction function (Average or K-means).
 - Progress tracking and estimated time remaining.

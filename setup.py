@@ -14,7 +14,7 @@ setup(
         "colorama==0.4.6",
         "joblib==1.3.2",
         "numpy==1.26.0",
-        "opencv-python==4.8.0.76",
+        "opencv-python==4.8.1.78",
         "Pillow==10.3.0",
         "scikit-learn==1.5.0",
         "scipy==1.11.2",

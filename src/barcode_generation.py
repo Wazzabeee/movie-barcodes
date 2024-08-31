@@ -3,6 +3,8 @@ from typing import Optional
 import numpy as np
 import cv2
 
+from tqdm import tqdm
+
 
 def generate_circular_barcode(colors: list, img_size: int, scale_factor: int = 10) -> np.ndarray:
     """
@@ -24,7 +26,7 @@ def generate_circular_barcode(colors: list, img_size: int, scale_factor: int = 1
     max_radius = center  # The largest circle's radius will be half of the image size
     radius_increment = max_radius / total_circles
 
-    for idx, color in enumerate(colors):
+    for idx, color in tqdm(enumerate(colors), desc="Generating Barcode..."):
         radius = (idx + 1) * radius_increment
 
         # Handle both simple RGB tuples and smoothed frames
@@ -67,8 +69,7 @@ def generate_barcode(
 
     step = max(1, len(colors) // frame_width)
     sampled_colors = [colors[i] for i in range(0, len(colors), step)]
-
-    for i, color in enumerate(sampled_colors):
+    for i, color in tqdm(enumerate(sampled_colors), desc="Generating Barcode..."):
         if i < frame_width:
             if isinstance(color, np.ndarray) and color.ndim == 3 and color.shape[1] == 1:
                 # For smoothed frames

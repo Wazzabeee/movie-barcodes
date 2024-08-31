@@ -36,6 +36,9 @@ $ pip install movie-barcodes
 
 # Generate a movie barcode
 $ movie-barcodes -i "path/to/video.mp4"
+
+# Arguments available
+usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {horizontal,circular}] [-m {avg,kmeans,hsv,bgr,smoothed}] [-w WORKERS] [--width WIDTH] [--height HEIGHT] [-n [OUTPUT_NAME]] [-a]
 ```
 
 ***Mandatory Arguments:***

@@ -3,7 +3,7 @@ The Lodger: A Story of the London Fog (1927) - Alfred Hitchcock - [Public Domain
 
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodgerastoryofthelondonfog_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodgerastoryofthelondonfog_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodger_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodger_smoothed_horizontal.png)
 
 ![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes)
 ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
@@ -108,27 +108,43 @@ $ python -m src.main -i "path_to_video.mp4"
 # More Examples
 ## Barbie (2023) - Greta Gerwig
 ```python
-movie-barcodes -i "barbie.mp4" -t "circular"
-movie-barcodes -i "barbie.mp4" --width 1920 -t "horizontal"
+movie-barcodes -i "barbie.mp4" -t "circular" -m "smoothed"
+movie-barcodes -i "barbie.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_horizontal.png)
+## Le Fabuleux Destin d'Amélie Poulain (2001) - Jean-Pierre Jeunet
+```python
+movie-barcodes -i "amelie.mp4" -t "circular" -m "smoothed"
+movie-barcodes -i "amelie.mp4" --width 1920 --height 1080 -t "horizontal"
+```
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/amelie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/amelie_smoothed_horizontal.png)
 ## Your Name / Kimi no Na wa / 君の名は (2016) - Makoto Shinkai
 ```python
-movie-barcodes -i "Your Name.mp4" -t "circular"
-movie-barcodes -i "Your Name.mp4" --width 1920 -t "horizontal"
+movie-barcodes -i "Your Name.mp4" -t "circular" -m "smoothed"
+movie-barcodes -i "Your Name.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/your_name_avg_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/yourname_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/yourname_smoothed_horizontal.png)
 ## Drive (2011) - Nicolas Winding Refn
 ```python
-movie-barcodes -i "Drive.mp4" -t "circular"
-movie-barcodes -i "Drive.mp4" --width 1920 -t "horizontal"
+movie-barcodes -i "Drive.mp4" -t "circular" -m "smoothed"
+movie-barcodes -i "Drive.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_avg_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_avg_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_horizontal.png)
+## The Royal Tenenbaums (2001) - Wes Anderson
+```python
+movie-barcodes -i "royal_tenenbaums.mp4" -t "circular" -m "smoothed"
+movie-barcodes -i "royal_tenenbaums.mp4" --width 1920 --height 1080 -t "horizontal"
+```
+Circular Barcode           |  Horizontal Barcode
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_horizontal.png)
 
 

@@ -145,6 +145,6 @@ movie-barcodes -i "royal_tenenbaums.mp4" --width 1920 --height 1080 -t "horizont
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royal_tenenbaum_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royaltenenbaums_smoothed_horizontal.png)
 
 

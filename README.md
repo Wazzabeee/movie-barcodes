@@ -7,7 +7,7 @@ Circular Barcode           |  Horizontal Barcode
 
 ![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes)
 ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
-![Python](https://img.shields.io/badge/python-3.11-blue)
+![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Status](https://img.shields.io/pypi/status/movie-barcodes.svg)
 ![Codecov](https://codecov.io/gh/Wazzabeee/movie-barcodes/branch/main/graph/badge.svg)
 ![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)
@@ -79,20 +79,22 @@ $ git clone https://github.com/Wazzabeee/movie-barcodes
 # Go into the repository
 $ cd movie-barcodes
 
-# Install requirements
-$ pip install -r requirements.txt
-$ pip install -r requirements_lint.txt
+# (Recommended) Use uv for environment and tools
+$ curl -LsSf https://astral.sh/uv/install.sh | sh   # or see uv docs for your OS
 
-# Install precommit
-$ pip install pre-commit
-$ pre-commit install
+# Create a virtual environment and install dependencies
+$ uv venv
+$ uv pip install -r requirements.txt
+
+# Install pre-commit hooks
+$ uvx pre-commit install
 
 # Run tests
-$ pip install pytest
-$ pytest tests/
+$ uv pip install pytest pytest-cov
+$ uv run pytest tests/
 
 # Run package locally
-$ python -m src.main -i "path_to_video.mp4"
+$ uv run python -m src.main -i "path_to_video.mp4"
 ```
 
 # Todo
@@ -146,5 +148,3 @@ movie-barcodes -i "royal_tenenbaums.mp4" --width 1920 --height 1080 -t "horizont
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royal_tenenbaum_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royaltenenbaums_smoothed_horizontal.png)
-
-

@@ -155,7 +155,7 @@ class TestVideoProcessing(unittest.TestCase):
         mock_video_instance.read.side_effect = read_side_effect
         mock_video_instance.grab.side_effect = grab_side_effect
 
-        expected_colors = [f"frame_data_{i*10}" for i in range(self.target_frames)]
+        expected_colors = [f"frame_data_{i * 10}" for i in range(self.target_frames)]
 
         actual_colors = video_processing.extract_colors(
             self.video_path,

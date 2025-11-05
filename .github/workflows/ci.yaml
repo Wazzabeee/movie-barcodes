@@ -13,16 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     name: Do the tests pass?
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.11
+        python-version: '3.12'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
     - name: Install dependencies and run tests
       run: |
-        pip install -r requirements.txt
-        pip install pytest pytest-cov
-        pytest tests/ --cov=src --cov-report=xml
+        uv venv
+        uv pip install -r requirements.txt
+        uv pip install pytest pytest-cov
+        uv run pytest tests/ --cov=src --cov-report=xml
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
@@ -36,20 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     name: Do the code respects Python standards?
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.11
-    - name: Install dependencies and run linters
+        python-version: '3.12'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+    - name: Run pre-commit (Ruff and hooks)
       run: |
-        pip install -r requirements_lint.txt
-        pip install -r requirements.txt
-        black . --line-length=120 --check --verbose
-        flake8
-        pip install --upgrade wrapt
-        pylint src/ tests/ --rcfile=setup.cfg --fail-under=9 --generated-members=cv2.*
-        mypy -p src -p tests --ignore-missing-imports --disallow-incomplete-defs
+        uvx pre-commit run --all-files --show-diff-on-failure
     continue-on-error: true
 
   release:
@@ -57,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Bump version and push tag
@@ -71,14 +70,16 @@ jobs:
           MINOR_STRING_TOKEN: 'feat:'
           PATCH_STRING_TOKEN: 'fix:'
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11.5'
+          python-version: '3.12'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
       - name: Build and publish
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-          pip install setuptools wheel twine
-          python setup.py sdist bdist_wheel
-          twine upload dist/*
+          uv pip install build twine
+          uv run python -m build
+          uv run twine upload dist/*

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from src import video_processing
+from movie_barcodes import video_processing
 
 
 class TestVideoProcessing(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestVideoProcessing(unittest.TestCase):
         """
         return frame
 
-    @patch("src.video_processing.cv2.VideoCapture")
+    @patch("movie_barcodes.video_processing.cv2.VideoCapture")
     def test_load_video_raises_error_on_file_not_open(self, mock_video: MagicMock) -> None:
         """
         Test load_video raises ValueError when the video file cannot be opened.
@@ -42,7 +42,7 @@ class TestVideoProcessing(unittest.TestCase):
             str(context.exception),
         )
 
-    @patch("src.video_processing.cv2.VideoCapture")
+    @patch("movie_barcodes.video_processing.cv2.VideoCapture")
     def test_load_video_raises_error_on_no_frames(self, mock_video: MagicMock) -> None:
         """
         Test load_video raises ValueError when the video has no frames.
@@ -58,7 +58,7 @@ class TestVideoProcessing(unittest.TestCase):
             str(context.exception),
         )
 
-    @patch("src.video_processing.cv2.VideoCapture")
+    @patch("movie_barcodes.video_processing.cv2.VideoCapture")
     def test_load_video_raises_error_on_invalid_dimensions(self, mock_video: MagicMock) -> None:
         """
         Test load_video raises ValueError when video has invalid dimensions.
@@ -78,7 +78,7 @@ class TestVideoProcessing(unittest.TestCase):
             str(context.exception),
         )
 
-    @patch("src.video_processing.cv2.VideoCapture")
+    @patch("movie_barcodes.video_processing.cv2.VideoCapture")
     def test_load_video_success(self, mock_video: MagicMock) -> None:
         """
         Test load_video successfully returns video properties.

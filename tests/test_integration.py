@@ -4,7 +4,7 @@ import glob
 import sys
 from unittest.mock import patch
 
-from src import main
+from movie_barcodes import cli as main
 
 
 class TestIntegration(unittest.TestCase):

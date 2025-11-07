@@ -45,7 +45,14 @@ Homepage = "https://github.com/Wazzabeee/movie-barcodes"
 Repository = "https://github.com/Wazzabeee/movie-barcodes"
 
 [project.scripts]
-movie-barcodes = "src.main:main"
+movie-barcodes = "movie_barcodes.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"

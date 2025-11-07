@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
-from src import (
+from movie_barcodes import (
     barcode_generation,
-)  # Adjust the import as per your project structure and naming
+)
 
 
 class TestBarcodeGeneration(unittest.TestCase):

@@ -64,11 +64,11 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 # Examples
 ## Sequential Processing
 ```python
-python -m src.main -i "path/to/video" --width 200 -w 1
+python -m movie_barcodes -i "path/to/video" --width 200 -w 1
 ```
 ## Parallel Processing
 ```python
-python -m src.main -i "path/to/video" --width 200 -w 8
+python -m movie_barcodes -i "path/to/video" --width 200 -w 8
 ```
 
 # Development Setup
@@ -94,7 +94,7 @@ $ uv pip install pytest pytest-cov
 $ uv run pytest tests/
 
 # Run package locally
-$ uv run python -m src.main -i "path_to_video.mp4"
+$ uv run python -m movie_barcodes -i "path_to_video.mp4"
 ```
 
 # Todo

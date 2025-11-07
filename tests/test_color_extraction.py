@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from src import (
+from movie_barcodes import (
     color_extraction,
 )
 

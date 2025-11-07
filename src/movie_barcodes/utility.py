@@ -57,19 +57,13 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
         if args.width <= 0:
             raise ValueError("Width must be greater than 0.")
         if args.width > frame_count:
-            raise ValueError(
-                f"Specified width ({args.width}) cannot be greater than the number of frames ({frame_count}) in the "
-                f"video."
-            )
+            raise ValueError("Width must be less than or equal to the number of frames.")
 
     if args.height is not None:
         if args.height <= 0:
             raise ValueError("Height must be greater than 0.")
         if args.height > frame_count:
-            raise ValueError(
-                f"Specified height ({args.height}) cannot be greater than the number of frames ({frame_count}) in the "
-                f"video."
-            )
+            raise ValueError("Height must be less than or equal to the number of frames.")
 
     if frame_count < MIN_FRAME_COUNT:
         raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
@@ -142,7 +136,8 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
     :param str method: The method used for color extraction.
     """
     current_dir = path.dirname(path.abspath(__file__))
-    project_root = path.dirname(current_dir)  # Go up one directory to get to the project root
+    # Go up two directories to reach the repository root (…/src/movie_barcodes -> …/src -> repo root)
+    project_root = path.dirname(path.dirname(current_dir))
     # If destination_path isn't specified, construct one based on the video's name
     if not args.destination_path:
         barcode_dir = path.join(project_root, "barcodes")
@@ -159,9 +154,10 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
 
         destination_path = path.join(barcode_dir, destination_name)
     else:
-        # In case a destination_path is provided, consider appending the method
-        # or managing as per your requirement
-        destination_path = path.join(project_root, args.destination_path)
+        # Use absolute path as-is; if relative, make it relative to project root
+        destination_path = args.destination_path
+        if not path.isabs(destination_path):
+            destination_path = path.join(project_root, destination_path)
 
     if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
         image = Image.fromarray(barcode, "RGBA")

@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 
-from src import utility
+from movie_barcodes import utility
 
 
 class TestUtility(unittest.TestCase):
@@ -32,14 +32,14 @@ class TestUtility(unittest.TestCase):
         self.MAX_PROCESSES = 8
         self.MIN_FRAME_COUNT = 100
         # Mock setup for path.exists and access to ensure they return True by default
-        patcher_exists = patch("src.utility.path.exists", return_value=True)
-        patcher_access = patch("src.utility.access", return_value=True)
+        patcher_exists = patch("movie_barcodes.utility.path.exists", return_value=True)
+        patcher_access = patch("movie_barcodes.utility.access", return_value=True)
         self.addCleanup(patcher_exists.stop)
         self.addCleanup(patcher_access.stop)
         self.mock_exists = patcher_exists.start()
         self.mock_access = patcher_access.start()
 
-    @patch("src.utility.path.exists")
+    @patch("movie_barcodes.utility.path.exists")
     def test_file_not_found_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a FileNotFoundError when the input video file does not exist.
@@ -50,7 +50,7 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    @patch("src.utility.path.exists")
+    @patch("movie_barcodes.utility.path.exists")
     def test_invalid_extension_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a ValueError when the input video file has an invalid extension.
@@ -62,8 +62,8 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    @patch("src.utility.path.exists")
-    @patch("src.utility.access")
+    @patch("movie_barcodes.utility.path.exists")
+    @patch("movie_barcodes.utility.access")
     def test_destination_path_not_writable(self, mock_access: MagicMock, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a PermissionError when the destination path is not writable.
@@ -76,7 +76,7 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(PermissionError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    @patch("src.utility.path.exists")
+    @patch("movie_barcodes.utility.path.exists")
     def test_workers_value_error(self, mock_exists: MagicMock) -> None:
         """
         Test that validate_args raises a ValueError when the number of workers is invalid.
@@ -127,6 +127,21 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, low_frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
+    @patch("movie_barcodes.utility.path.exists")
+    def test_frame_count_too_low_specific_branch(self, mock_exists: MagicMock) -> None:
+        """
+        Ensure the frame_count < MIN_FRAME_COUNT branch in validate_args is executed
+        by avoiding earlier width/height validations.
+        :param mock_exists: MagicMock for path.exists
+        :return: None
+        """
+        mock_exists.return_value = True
+        self.args.width = None
+        self.args.height = None
+        with self.assertRaises(ValueError) as cm:
+            utility.validate_args(self.args, self.MIN_FRAME_COUNT - 1, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        self.assertIn(f"at least {self.MIN_FRAME_COUNT} frames", str(cm.exception))
+
     def test_all_methods_and_method_error(self) -> None:
         """
         Test that validate_args raises a ValueError when the --all_methods flag is used with the --method argument.
@@ -144,8 +159,8 @@ class TestUtility(unittest.TestCase):
         """
         utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    @patch("src.utility.makedirs")
-    @patch("src.utility.path.exists")
+    @patch("movie_barcodes.utility.makedirs")
+    @patch("movie_barcodes.utility.path.exists")
     def test_ensure_directory_creates_directory(self, mock_exists: MagicMock, mock_makedirs: MagicMock) -> None:
         """
         Test ensure_directory creates the directory when it does not exist.
@@ -239,7 +254,7 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.get_dominant_color_function("invalid_method")
 
-    @patch("src.utility.path.getsize")
+    @patch("movie_barcodes.utility.path.getsize")
     def test_get_video_properties(self, mock_getsize: MagicMock) -> None:
         """
         Test that get_video_properties correctly extracts video properties.
@@ -274,10 +289,10 @@ class TestUtility(unittest.TestCase):
         mock_video.get.assert_any_call(cv2.CAP_PROP_FPS)
         mock_getsize.assert_called_once_with(args.input_video_path)
 
-    @patch("src.utility.path.join")
-    @patch("src.utility.Image.fromarray")
-    @patch("src.utility.path.dirname")
-    @patch("src.utility.path.abspath")
+    @patch("movie_barcodes.utility.path.join")
+    @patch("movie_barcodes.utility.Image.fromarray")
+    @patch("movie_barcodes.utility.path.dirname")
+    @patch("movie_barcodes.utility.path.abspath")
     def test_save_barcode_image_variations(
         self,
         mock_abspath: MagicMock,
@@ -334,6 +349,45 @@ class TestUtility(unittest.TestCase):
         mock_image = mock_fromarray.return_value
         utility.save_barcode_image(barcode, base_name, args_without_workers, "avg")
         mock_image.save.assert_called()  # Ensure the image is attempted to be saved
+
+    @patch("movie_barcodes.utility.path.join")
+    @patch("movie_barcodes.utility.Image.fromarray")
+    @patch("movie_barcodes.utility.path.isabs")
+    @patch("movie_barcodes.utility.path.dirname")
+    @patch("movie_barcodes.utility.path.abspath")
+    def test_save_barcode_image_with_relative_destination_path(
+        self,
+        mock_abspath: MagicMock,
+        mock_dirname: MagicMock,
+        mock_isabs: MagicMock,
+        mock_fromarray: MagicMock,
+        mock_path_join: MagicMock,
+    ) -> None:
+        """
+        When a relative destination_path is provided, ensure it is resolved relative to project root.
+        """
+        mock_abspath.return_value = "/fake/root/src/movie_barcodes/utility.py"
+        # save_barcode_image calls dirname three times: dirname(abspath(...)) and dirname(dirname(current_dir))
+        mock_dirname.side_effect = [
+            "/fake/root/src/movie_barcodes",  # dirname of abspath
+            "/fake/root/src",  # inner dirname(current_dir)
+            "/fake/root",  # outer dirname(<above>) => project root
+        ]
+        mock_isabs.return_value = False
+        mock_path_join.side_effect = lambda *args: "/".join(args)
+
+        barcode = np.zeros((2, 2, 3), dtype=np.uint8)
+        args = argparse.Namespace(
+            destination_path="relative/output.png",
+            output_name=None,
+            barcode_type="type1",
+            workers=None,
+        )
+
+        utility.save_barcode_image(barcode, "video_sample", args, "avg")
+
+        expected_saved_path = "/fake/root/relative/output.png"
+        mock_fromarray.return_value.save.assert_called_with(expected_saved_path)
 
 
 if __name__ == "__main__":

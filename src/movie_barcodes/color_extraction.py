@@ -30,14 +30,14 @@ def get_dominant_color_kmeans(frame: np.ndarray, k: int = 3) -> np.ndarray:
     Gets the dominant color of a frame using KMeans clustering.
 
     :param np.ndarray frame: The frame as a NumPy array.
-    :param int k: Number of clusters for KMeans algorithm. Defaults to 1.
+    :param int k: Number of clusters for KMeans algorithm. Defaults to 3.
     :return: Dominant color as a NumPy array.
     """
     # Reshape the frame to be a list of pixels
     pixels = frame.reshape(-1, 3)
 
     # Apply KMeans clustering
-    kmeans = KMeans(n_clusters=k, n_init=10)
+    kmeans = KMeans(n_clusters=k, n_init=10, random_state=0)
     kmeans.fit(pixels)
 
     # Get the RGB values of the cluster centers

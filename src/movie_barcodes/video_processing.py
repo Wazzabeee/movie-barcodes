@@ -51,33 +51,45 @@ def parallel_extract_colors(
     if target_frames is None:
         target_frames = frame_count
 
-    frames_per_worker = frame_count // workers
-    target_frames_per_worker = target_frames // workers
+    # Cap workers to available work to avoid empty tasks
+    active_workers = max(1, min(workers, frame_count, target_frames))
 
-    with Pool(workers) as pool:
-        args = [
+    # Evenly distribute frame ranges across active workers
+    base_frames = frame_count // active_workers
+    remainder_frames = frame_count % active_workers
+    frame_ranges = []
+    start = 0
+    for i in range(active_workers):
+        length = base_frames + (1 if i < remainder_frames else 0)
+        end = start + length - 1
+        frame_ranges.append((start, end))
+        start = end + 1
+
+    # Evenly distribute target samples ensuring total equals target_frames
+    base_samples = target_frames // active_workers
+    remainder_samples = target_frames % active_workers
+    samples_per_worker = [base_samples + (1 if i < remainder_samples else 0) for i in range(active_workers)]
+
+    # Build only tasks that have at least one sample (avoid passing 0 -> falsy)
+    task_args = []
+    for i in range(active_workers):
+        if samples_per_worker[i] <= 0:
+            continue
+        start_frame, end_frame = frame_ranges[i]
+        if end_frame < start_frame:
+            continue
+        task_args.append(
             (
                 video_path,
-                i * frames_per_worker,
-                (i + 1) * frames_per_worker - 1,
+                start_frame,
+                end_frame,
                 color_extractor,
-                target_frames_per_worker,
-                False,  # disable worker progress bars
+                samples_per_worker[i],
             )
-            for i in range(workers)
-        ]
+        )
 
-        if frame_count % workers != 0 or target_frames % workers != 0:
-            args[-1] = (
-                video_path,
-                args[-1][1],
-                frame_count - 1,
-                color_extractor,
-                target_frames - (workers - 1) * target_frames_per_worker,
-                False,
-            )
-
-        results = pool.starmap(extract_colors, args)
+    with Pool(active_workers) as pool:
+        results = pool.starmap(extract_colors, task_args)
 
     # Concatenate results from all workers
     final_colors = [color for colors in results for color in colors]
@@ -91,7 +103,6 @@ def extract_colors(
     end_frame: int,
     color_extractor: Callable,
     target_frames: Optional[int] = None,
-    show_progress: bool = True,
 ) -> List:
     """
     Extracts dominant colors from frames in a video file.
@@ -101,7 +112,6 @@ def extract_colors(
     :param int end_frame: The index of the last frame to process.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :param Optional[int] target_frames: The total number of frames to sample.
-    :param bool show_progress: Whether to display a tqdm progress bar during extraction.
     :return: List of dominant colors from the sampled frames.
     """
     video = cv2.VideoCapture(video_path)
@@ -116,11 +126,7 @@ def extract_colors(
 
     colors = []
 
-    iterator = range(target_frames or total_frames)
-    if show_progress:
-        iterator = tqdm(iterator, desc="Processing frames")
-
-    for _ in iterator:
+    for _ in tqdm(range(target_frames or total_frames), desc="Processing frames"):
         ret, frame = video.read()  # Read the first or next frame
         if ret:
             dominant_color = color_extractor(frame)

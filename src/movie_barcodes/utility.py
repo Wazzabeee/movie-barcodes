@@ -160,9 +160,13 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
             destination_path = path.join(project_root, destination_path)
 
     if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
-        image = Image.fromarray(barcode, "RGBA")
+        # Convert BGRA -> RGBA once at save-time
+        barcode_to_save = cv2.cvtColor(barcode, cv2.COLOR_BGRA2RGBA)
+        image = Image.fromarray(barcode_to_save, "RGBA")
     else:  # If the image doesn't have an alpha channel (RGB)
-        image = Image.fromarray(barcode, "RGB")
+        # Convert BGR -> RGB once at save-time
+        barcode_to_save = cv2.cvtColor(barcode, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(barcode_to_save, "RGB")
 
     image.save(destination_path)
     logging.info("File saved at '%s'", destination_path)

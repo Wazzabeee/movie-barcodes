@@ -62,6 +62,7 @@ def parallel_extract_colors(
                 (i + 1) * frames_per_worker - 1,
                 color_extractor,
                 target_frames_per_worker,
+                False,  # disable worker progress bars
             )
             for i in range(workers)
         ]
@@ -73,6 +74,7 @@ def parallel_extract_colors(
                 frame_count - 1,
                 color_extractor,
                 target_frames - (workers - 1) * target_frames_per_worker,
+                False,
             )
 
         results = pool.starmap(extract_colors, args)
@@ -89,6 +91,7 @@ def extract_colors(
     end_frame: int,
     color_extractor: Callable,
     target_frames: Optional[int] = None,
+    show_progress: bool = True,
 ) -> List:
     """
     Extracts dominant colors from frames in a video file.
@@ -98,6 +101,7 @@ def extract_colors(
     :param int end_frame: The index of the last frame to process.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :param Optional[int] target_frames: The total number of frames to sample.
+    :param bool show_progress: Whether to display a tqdm progress bar during extraction.
     :return: List of dominant colors from the sampled frames.
     """
     video = cv2.VideoCapture(video_path)
@@ -112,7 +116,11 @@ def extract_colors(
 
     colors = []
 
-    for _ in tqdm(range(target_frames or total_frames), desc="Processing frames"):
+    iterator = range(target_frames or total_frames)
+    if show_progress:
+        iterator = tqdm(iterator, desc="Processing frames")
+
+    for _ in iterator:
         ret, frame = video.read()  # Read the first or next frame
         if ret:
             dominant_color = color_extractor(frame)

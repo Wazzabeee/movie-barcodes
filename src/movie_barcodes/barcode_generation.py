@@ -35,13 +35,13 @@ def generate_circular_barcode(colors: list, img_size: int, scale_factor: int = 1
     ):
         radius = (idx + 1) * radius_increment
 
-        # Handle both simple RGB tuples and smoothed frames
+        # Handle both simple BGR tuples and smoothed frames
         if isinstance(color, np.ndarray) and color.ndim > 1:
-            # For smoothed frames, take the average color
+            # For smoothed frames, take the average BGR color
             color = np.mean(color, axis=(0, 1)).astype(int)
 
-        # Ensure color is in BGR format for OpenCV
-        bgr_color = color[::-1] if len(color) == 3 else color[2::-1]
+        # Colors are BGR throughout the pipeline; draw directly in BGR
+        bgr_color = color
 
         cv2.circle(
             barcode_high_res,
@@ -89,8 +89,7 @@ def generate_barcode(
                 # For single color values
                 color_column = np.full((frame_height, 1, 3), color, dtype=np.uint8)
 
-            # Convert to BGR (which will be interpreted as RGB when saved with PIL)
-            bgr_color = cv2.cvtColor(color_column, cv2.COLOR_RGB2BGR)
-            barcode[:, i] = bgr_color.reshape(frame_height, 3)
+            # Keep BGR internally; perform RGB conversion once at save-time
+            barcode[:, i] = color_column.reshape(frame_height, 3)
 
     return barcode

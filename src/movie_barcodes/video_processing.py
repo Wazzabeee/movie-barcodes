@@ -128,9 +128,10 @@ def extract_colors(
 
     for _ in tqdm(range(target_frames or total_frames), desc="Processing frames"):
         ret, frame = video.read()  # Read the first or next frame
-        if ret:
-            dominant_color = color_extractor(frame)
-            colors.append(dominant_color)
+        if not ret:
+            break
+        dominant_color = color_extractor(frame)
+        colors.append(dominant_color)
         for _ in range(frame_skip - 1):
             video.grab()  # Skip frames
 

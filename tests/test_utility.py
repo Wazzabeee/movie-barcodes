@@ -366,11 +366,16 @@ class TestUtility(unittest.TestCase):
         When a relative destination_path is provided, ensure it is resolved relative to project root.
         """
         mock_abspath.return_value = "/fake/root/src/movie_barcodes/utility.py"
-        # save_barcode_image calls dirname three times: dirname(abspath(...)) and dirname(dirname(current_dir))
+        # save_barcode_image calls dirname four times:
+        # 1) dirname(abspath(...)) => current_dir
+        # 2) dirname(current_dir)
+        # 3) dirname(<above>) => project root
+        # 4) dirname(resolved destination_path) => parent dir
         mock_dirname.side_effect = [
             "/fake/root/src/movie_barcodes",  # dirname of abspath
             "/fake/root/src",  # inner dirname(current_dir)
             "/fake/root",  # outer dirname(<above>) => project root
+            "/fake/root/relative",  # parent dir of destination_path
         ]
         mock_isabs.return_value = False
         mock_path_join.side_effect = lambda *args: "/".join(args)

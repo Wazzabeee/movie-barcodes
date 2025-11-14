@@ -153,6 +153,9 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
         destination_path = args.destination_path
         if not path.isabs(destination_path):
             destination_path = path.join(project_root, destination_path)
+        # Ensure parent directory exists if user provided a custom path
+        parent_dir = path.dirname(destination_path) or "."
+        ensure_directory(parent_dir)
 
     if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
         # Convert BGRA -> RGBA once at save-time

@@ -53,13 +53,20 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 
 - `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
 
-- `--width`: The output image's width in pixels. If not specified, the width will be the same as the input video. (Optional, type: int)
+- `--width`: For horizontal barcodes, sets both (1) the number of sampled frames and (2) the output image width in pixels. If not specified, defaults to the input video width. For circular barcodes, this flag is ignored (see notes). (Optional, type: int)
 
 - `--height`: The output image's height in pixels. If not specified, the height will be the same as the input video. (Optional, type: int)
 
 - `-n`, `--output_name`: Custom name for the output barcode image. If not provided, a name will be automatically generated. (Optional, type: str)
 
-- `-a`, `--all_methods`: If set to True, all methods for color extraction will be employed, overriding the --method argument. Default is False. (Optional, type: bool)
+- `-a`, `--all_methods`: If set, all extraction methods will be run. This overrides `--method` and produces one image per method. Default is False. (Optional, type: bool)
+
+Notes:
+- Circular barcode sizing: circular barcode diameter uses the input video width by default. `--width`/`--height` do not apply to circular barcodes.
+- Destination paths:
+  - If a relative path is provided, it is resolved relative to the project root.
+  - If only a filename (basename) is provided, it is saved in the project root.
+  - Parent directories are created automatically when saving the image.
 
 # Examples
 ## Sequential Processing

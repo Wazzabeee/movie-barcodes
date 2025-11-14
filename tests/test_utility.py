@@ -114,9 +114,9 @@ class TestUtility(unittest.TestCase):
         with self.assertRaises(ValueError):
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-        self.args.height = self.frame_count + 1  # Testing for > frame_count
-        with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        # Heights greater than frame_count are now allowed (no exception expected)
+        self.args.height = self.frame_count + 1
+        utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
     def test_frame_count_too_low(self) -> None:
         """
@@ -144,13 +144,12 @@ class TestUtility(unittest.TestCase):
 
     def test_all_methods_and_method_error(self) -> None:
         """
-        Test that validate_args raises a ValueError when the --all_methods flag is used with the --method argument.
+        When --all_methods is provided, it should no longer raise even if --method is set.
         :return: None
         """
         self.args.all_methods = True
         self.args.method = "avg"  # Explicitly setting method to simulate conflict
-        with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
     def test_no_error_raised(self) -> None:
         """

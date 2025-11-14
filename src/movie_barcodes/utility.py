@@ -40,7 +40,7 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
 
     # Check if the destination path is writable
     if args.destination_path is not None:
-        destination_dir = path.dirname(args.destination_path)
+        destination_dir = path.dirname(args.destination_path) or "."
         if not access(destination_dir, W_OK):
             raise PermissionError(f"The specified destination path '{args.destination_path}' is not writable.")
 
@@ -62,14 +62,9 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
     if args.height is not None:
         if args.height <= 0:
             raise ValueError("Height must be greater than 0.")
-        if args.height > frame_count:
-            raise ValueError("Height must be less than or equal to the number of frames.")
 
     if frame_count < MIN_FRAME_COUNT:
         raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
-
-    if args.all_methods and args.method is not None:
-        raise ValueError("The --all_methods flag cannot be used with the --method argument.")
 
 
 def get_dominant_color_function(method: str) -> Callable:

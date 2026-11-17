@@ -51,7 +51,7 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 
 - `-m`, `--method`: The algorithm for extracting the dominant color from frames. Options are avg (average), kmeans (K-Means clustering), hsv (HSV histogram), bgr (BGR histogram) and smoothed versions. Default is avg. (Optional, type: str)
 
-- `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
+- `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. Values above the number of available CPU cores are capped to that number, with a warning. (Optional, type: int)
 
 - `--width`: The number of sampled frames. For horizontal barcodes it is also the output image width in pixels; for circular barcodes it is the number of rings. If not specified, defaults to the input video width (capped by the number of frames). Must not exceed the number of frames. (Optional, type: int)
 

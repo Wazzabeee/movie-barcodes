@@ -84,18 +84,41 @@ class TestUtility(unittest.TestCase):
     @patch("movie_barcodes.utility.path.exists")
     def test_workers_value_error(self, mock_exists: MagicMock) -> None:
         """
-        Test that validate_args raises a ValueError when the number of workers is invalid.
+        Test that validate_args raises a ValueError when the number of workers is lower than 1.
         :param mock_exists: MagicMock object for path.exists function to return True
         :return: None
         """
         mock_exists.return_value = True
-        self.args.workers = 0  # Testing for < 1
-        with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        for workers in (0, -1):
+            self.args.workers = workers
+            with self.assertRaises(ValueError):
+                utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-        self.args.workers = self.MAX_PROCESSES + 1  # Testing for > MAX_PROCESSES
-        with self.assertRaises(ValueError):
+    def test_workers_capped_to_max_processes(self) -> None:
+        """
+        Test that validate_args caps workers to MAX_PROCESSES with a warning instead of raising.
+        :return: None
+        """
+        self.args.workers = self.MAX_PROCESSES * 2
+        with self.assertLogs(level="WARNING") as logs:
             utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        self.assertEqual(self.args.workers, self.MAX_PROCESSES)
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn(
+            f"Requested {self.MAX_PROCESSES * 2} workers but only {self.MAX_PROCESSES} CPU cores are available",
+            logs.output[0],
+        )
+
+    def test_workers_within_limit_unchanged(self) -> None:
+        """
+        Test that validate_args leaves workers untouched and logs nothing when it does not exceed MAX_PROCESSES.
+        :return: None
+        """
+        for workers in (1, self.MAX_PROCESSES):
+            self.args.workers = workers
+            with self.assertNoLogs(level="WARNING"):
+                utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self.assertEqual(self.args.workers, workers)
 
     def test_invalid_width(self) -> None:
         """

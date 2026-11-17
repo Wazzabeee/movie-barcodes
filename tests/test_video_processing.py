@@ -462,7 +462,7 @@ class TestParallelExtractColorsProgress(unittest.TestCase):
         mock_video.return_value.read.return_value = (True, "frame_data")
 
         with (
-            patch("movie_barcodes.video_processing.Pool", ThreadPool),
+            patch.object(video_processing.MP_CONTEXT, "Pool", ThreadPool),
             patch("movie_barcodes.video_processing.tqdm", wraps=tqdm) as mock_tqdm,
         ):
             colors = video_processing.parallel_extract_colors("dummy_video.mp4", 100, lambda frame: frame, 3, 10)

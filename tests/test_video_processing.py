@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import cv2
 from movie_barcodes import video_processing
 
 
@@ -151,6 +152,7 @@ class TestVideoProcessing(unittest.TestCase):
         def grab_side_effect():
             if current_frame[0] < self.end_frame:
                 current_frame[0] += 1
+            return True
 
         mock_video_instance.read.side_effect = read_side_effect
         mock_video_instance.grab.side_effect = grab_side_effect
@@ -243,6 +245,7 @@ class TestVideoProcessing(unittest.TestCase):
 
         def grab_side_effect():
             current_frame[0] += 1
+            return True
 
         mock_video_instance.read.side_effect = read_side_effect
         mock_video_instance.grab.side_effect = grab_side_effect
@@ -349,6 +352,126 @@ class TestVideoProcessing(unittest.TestCase):
         colors = video_processing.extract_colors(self.video_path, 290, 392, self.mock_color_extractor)
 
         self.assertEqual(colors, list(range(290, 300)))
+
+
+class FakeCapture:
+    """
+    Minimal stand-in for cv2.VideoCapture: read() returns the index of the frame it reads.
+    `seek_error` shifts where a seek lands once frames have been read (negative: before the target,
+    like a keyframe seek; positive: past it). `seek_ok=False` makes every seek fail.
+    """
+
+    def __init__(self, frame_count: int, seek_error: int = 0, seek_ok: bool = True) -> None:
+        self.frame_count = frame_count
+        self.seek_error = seek_error
+        self.seek_ok = seek_ok
+        self.pos = 0
+        self.reads = 0
+        self.seeks: list = []
+        self.grabs = 0
+
+    def set(self, prop: int, value: int) -> bool:
+        assert prop == cv2.CAP_PROP_POS_FRAMES
+        self.seeks.append(value)
+        if not self.seek_ok:
+            return False
+        # The initial positioning on start_frame is exact; later seeks get seek_error applied
+        self.pos = value + self.seek_error if self.reads else value
+        return True
+
+    def get(self, prop: int) -> float:
+        assert prop == cv2.CAP_PROP_POS_FRAMES
+        return float(self.pos)
+
+    def grab(self) -> bool:
+        self.grabs += 1
+        self.pos += 1
+        return self.pos <= self.frame_count
+
+    def read(self) -> tuple:
+        self.reads += 1
+        frame = self.pos
+        self.pos += 1
+        return (True, frame) if frame < self.frame_count else (False, None)
+
+    def release(self) -> None:
+        pass
+
+
+class TestFrameSkipping(unittest.TestCase):
+    """
+    Test how extract_colors moves between samples: grab() for small gaps, a seek for large ones.
+    """
+
+    # Sample spacing whose skip (spacing - 1 frames between two reads) is just over the threshold
+    gap = video_processing.SEEK_THRESHOLD + 2
+    # Start far enough in the stream for seeks to be allowed
+    start = video_processing.SEEK_FROM_START_FRAMES
+
+    def run_extract(self, capture: FakeCapture, start_frame: int, end_frame: int, target_frames: int) -> list:
+        with patch("cv2.VideoCapture", return_value=capture):
+            return video_processing.extract_colors("dummy.mp4", start_frame, end_frame, lambda f: f, target_frames)
+
+    def run_four_samples(self, capture: FakeCapture, gap: int) -> list:
+        return self.run_extract(capture, self.start, self.start + gap * 4 - 1, 4)
+
+    def test_large_gaps_use_seek(self) -> None:
+        capture = FakeCapture(frame_count=self.start + self.gap * 4)
+        colors = self.run_four_samples(capture, self.gap)
+        expected = [self.start + i * self.gap for i in range(4)]
+        self.assertEqual(colors, expected)
+        self.assertEqual(capture.seeks, expected)  # Initial positioning, then one absolute seek per sample
+        self.assertEqual(capture.grabs, 0)
+
+    def test_small_gaps_use_grab(self) -> None:
+        gap = video_processing.SEEK_THRESHOLD + 1  # Skips exactly SEEK_THRESHOLD frames
+        capture = FakeCapture(frame_count=self.start + gap * 4)
+        colors = self.run_four_samples(capture, gap)
+        self.assertEqual(colors, [self.start + i * gap for i in range(4)])
+        self.assertEqual(capture.seeks, [self.start])  # Only the initial positioning
+        self.assertEqual(capture.grabs, 3 * (gap - 1))
+
+    def test_no_seek_near_start_of_stream(self) -> None:
+        # Seeks are unreliable near the start of some streams: targets below SEEK_FROM_START_FRAMES are grabbed
+        frame_count = video_processing.SEEK_FROM_START_FRAMES + self.gap * 2
+        targets = list(range(0, frame_count, self.gap))
+        capture = FakeCapture(frame_count=frame_count)
+        colors = self.run_extract(capture, 0, len(targets) * self.gap - 1, len(targets))
+        self.assertEqual(colors, targets)
+        self.assertEqual(capture.seeks, [t for t in targets if t >= video_processing.SEEK_FROM_START_FRAMES])
+
+    def test_seek_landing_before_target_is_corrected_with_grabs(self) -> None:
+        capture = FakeCapture(frame_count=self.start + self.gap * 4, seek_error=-5)
+        colors = self.run_four_samples(capture, self.gap)
+        self.assertEqual(colors, [self.start + i * self.gap for i in range(4)])
+        self.assertEqual(capture.grabs, 3 * 5)
+
+    def test_seek_overshoot_keeps_order_and_count(self) -> None:
+        capture = FakeCapture(frame_count=self.start + self.gap * 4, seek_error=2)
+        colors = self.run_four_samples(capture, self.gap)
+        targets = [self.start + i * self.gap for i in range(4)]
+        self.assertEqual(len(colors), 4)
+        self.assertEqual(colors, sorted(set(colors)))
+        for color, target in zip(colors, targets):
+            self.assertIn(color - target, (0, 2))  # Exact, or the frame the overshooting seek landed on
+
+    def test_failed_seek_falls_back_to_grab(self) -> None:
+        capture = FakeCapture(frame_count=self.start + self.gap * 4, seek_ok=False)
+        colors = self.run_four_samples(capture, self.gap)
+        self.assertEqual(colors, [self.start + i * self.gap for i in range(4)])
+
+    def test_seek_past_end_of_video_stops_cleanly(self) -> None:
+        # The container reports more frames than it can decode: samples past the real end are dropped
+        capture = FakeCapture(frame_count=self.start + self.gap * 2)
+        colors = self.run_four_samples(capture, self.gap)
+        self.assertEqual(colors, [self.start, self.start + self.gap])
+
+    def test_grab_past_end_of_video_stops_cleanly(self) -> None:
+        gap = video_processing.SEEK_THRESHOLD + 1
+        capture = FakeCapture(frame_count=self.start + gap + 10)
+        colors = self.run_four_samples(capture, gap)
+        self.assertEqual(colors, [self.start, self.start + gap])
+        self.assertLessEqual(capture.grabs, 3 * gap)  # Grabbing stopped at the real end
 
 
 if __name__ == "__main__":

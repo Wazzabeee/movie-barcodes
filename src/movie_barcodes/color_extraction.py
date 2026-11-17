@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from sklearn.cluster import KMeans
 import cv2
@@ -10,6 +12,11 @@ HSV_MIN_SATURATION = 40
 HSV_MIN_VALUE = 40
 # Minimum share of colorful pixels required to pick a dominant hue; otherwise fall back to the mean color
 HSV_MIN_COLORFUL_RATIO = 0.05
+
+# Bins per channel of the joint BGR histogram (must be a power of two); 16 gives 16 ** 3 = 4096 color bins
+BGR_HIST_BINS = 16
+# Frames are subsampled to at most this many pixels (approximately) before building the BGR histogram
+BGR_HIST_MAX_PIXELS = 256 * 256
 
 
 def get_smoothed_frame(frame: np.ndarray) -> np.ndarray:
@@ -113,21 +120,31 @@ def get_dominant_color_hsv(frame: np.ndarray) -> np.ndarray:
 
 def get_dominant_color_bgr(frame: np.ndarray) -> np.ndarray:
     """
-    Gets the dominant color of a frame in the BGR color space by calculating the histograms for each channel.
+    Gets the dominant color of a frame with a joint 3D histogram of its BGR values.
 
-    Note: each channel is maximized independently, so the resulting color may not be present in the frame.
+    Each channel is quantized to BGR_HIST_BINS bins, so every pixel falls into one of BGR_HIST_BINS ** 3 color
+    bins. The most populated bin wins and the mean color of the pixels in that bin is returned: the result is
+    always close to a color actually present in the frame (a single-color frame returns that exact color).
+
+    Large frames are subsampled with a regular stride before counting. Unlike a resize, a stride keeps real
+    pixels and never blends neighboring colors into a new one.
 
     :param np.ndarray frame: The frame as a NumPy array.
-    :return: Dominant color as a NumPy array.
+    :return: Dominant color as a NumPy array (BGR, uint8).
     """
-    # Calculate the histogram for each color channel
-    hist_b = cv2.calcHist([frame], [0], None, [256], [0, 256])
-    hist_g = cv2.calcHist([frame], [1], None, [256], [0, 256])
-    hist_r = cv2.calcHist([frame], [2], None, [256], [0, 256])
+    height, width = frame.shape[:2]
+    if height * width > BGR_HIST_MAX_PIXELS:
+        stride = math.ceil(math.sqrt(height * width / BGR_HIST_MAX_PIXELS))
+        frame = frame[::stride, ::stride]
 
-    # Find the color with the maximum count
-    dominant_b = np.argmax(hist_b)
-    dominant_g = np.argmax(hist_g)
-    dominant_r = np.argmax(hist_r)
+    pixels = frame.reshape(-1, 3)
 
-    return np.array([dominant_b, dominant_g, dominant_r], dtype=np.uint8)
+    # Flat index of the 3D histogram bin of each pixel
+    shift = 8 - int(math.log2(BGR_HIST_BINS))
+    quantized = (pixels >> shift).astype(np.intp)
+    bin_indices = (quantized[:, 0] * BGR_HIST_BINS + quantized[:, 1]) * BGR_HIST_BINS + quantized[:, 2]
+
+    counts = np.bincount(bin_indices, minlength=BGR_HIST_BINS**3)
+    dominant_bin = np.argmax(counts)
+
+    return pixels[bin_indices == dominant_bin].mean(axis=0).round().astype(np.uint8)

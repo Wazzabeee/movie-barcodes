@@ -20,3 +20,12 @@ repos:
       args:
         - --fix
     - id: ruff-format
+
+- repo: local
+  hooks:
+    - id: uv-lock-public-pypi-only
+      name: uv.lock only references the public PyPI registry
+      description: Fails if uv.lock was generated with a private index (e.g. from a user-level uv.toml). Regenerate with `UV_NO_CONFIG=1 uv lock`.
+      language: pygrep
+      entry: 'registry = "(?!https://pypi\.org/simple")'
+      files: ^uv\.lock$

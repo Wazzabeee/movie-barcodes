@@ -1,8 +1,11 @@
+import argparse
 import unittest
 import os
 import glob
 import sys
 from unittest.mock import patch
+
+from PIL import Image
 
 from movie_barcodes import cli as main
 
@@ -69,6 +72,31 @@ class TestIntegration(unittest.TestCase):
                 os.remove(img_file)  # Remove the file
             except OSError as e:
                 print(f"Error: {img_file} : {e.strerror}")
+
+    def test_default_width_is_video_width_capped_by_frame_count(self):
+        """
+        Without --width, the number of samples (and horizontal width) is min(video width, frame count).
+        """
+        args = argparse.Namespace(width=None)
+        self.assertEqual(main.get_target_frames(args, frame_count=100_000, frame_width=1920), 1920)
+        self.assertEqual(main.get_target_frames(args, frame_count=93, frame_width=2048), 93)
+        self.assertEqual(main.get_target_frames(argparse.Namespace(width=50), 93, 2048), 50)
+
+    def test_missing_input_file_raises_file_not_found(self):
+        with patch.object(sys, "argv", ["movie-barcodes", "-i", "does/not/exist.mp4"]):
+            with self.assertRaises(FileNotFoundError):
+                main.main()
+
+    def test_horizontal_output_dimensions(self):
+        """
+        End-to-end: the horizontal barcode has the requested width and height and is saved in ./barcodes.
+        """
+        args = ["movie-barcodes", "-i", self.input_video_path, "-w", "1", "--width", "40", "--height", "25"]
+        args += ["-n", "sample_dimensions_check"]
+        with patch.object(sys, "argv", args):
+            main.main()
+        with Image.open("barcodes/sample_dimensions_check.png") as image:
+            self.assertEqual(image.size, (40, 25))
 
 
 if __name__ == "__main__":

@@ -227,6 +227,33 @@ class TestVideoProcessing(unittest.TestCase):
         # Assert that all frames were processed since target_frames was not given
         self.assertEqual(len(colors), self.end_frame)
 
+    @patch("cv2.VideoCapture")
+    def test_samples_spread_until_end_of_range(self, mock_video: MagicMock) -> None:
+        """
+        Samples are spread over the whole range: with 100 frames and 40 samples, an integer step of 2
+        would stop at frame 78 and ignore the last 20% of the range.
+        """
+        mock_video_instance = mock_video.return_value
+        current_frame = [0]
+
+        def read_side_effect():
+            frame = current_frame[0]
+            current_frame[0] += 1
+            return (True, frame) if frame < 100 else (False, None)
+
+        def grab_side_effect():
+            current_frame[0] += 1
+
+        mock_video_instance.read.side_effect = read_side_effect
+        mock_video_instance.grab.side_effect = grab_side_effect
+
+        colors = video_processing.extract_colors(self.video_path, 0, 99, self.mock_color_extractor, 40)
+
+        self.assertEqual(len(colors), 40)
+        self.assertEqual(colors[0], 0)
+        self.assertGreaterEqual(colors[-1], 97)
+        self.assertEqual(colors, sorted(set(colors)))
+
 
 if __name__ == "__main__":
     unittest.main()

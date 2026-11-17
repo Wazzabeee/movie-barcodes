@@ -38,9 +38,12 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
     if path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
         raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm, .mkv).")
 
-    # Check if the destination path is writable
+    # Check if the destination path is writable. Missing parent directories are created at save time,
+    # so check the closest existing ancestor (paths are relative to the current working directory).
     if args.destination_path is not None:
-        destination_dir = path.dirname(args.destination_path) or "."
+        destination_dir = path.dirname(path.abspath(args.destination_path))
+        while not path.exists(destination_dir) and path.dirname(destination_dir) != destination_dir:
+            destination_dir = path.dirname(destination_dir)
         if not access(destination_dir, W_OK):
             raise PermissionError(f"The specified destination path '{args.destination_path}' is not writable.")
 
@@ -130,12 +133,11 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
     :param args: Command line arguments.
     :param str method: The method used for color extraction.
     """
-    current_dir = path.dirname(path.abspath(__file__))
-    # Go up two directories to reach the repository root (…/src/movie_barcodes -> …/src -> repo root)
-    project_root = path.dirname(path.dirname(current_dir))
-    # If destination_path isn't specified, construct one based on the video's name
+    # Paths are resolved relative to the current working directory (not the package install location,
+    # which would be site-packages once installed with pip).
     if not args.destination_path:
-        barcode_dir = path.join(project_root, "barcodes")
+        # If destination_path isn't specified, save in ./barcodes with a name based on the video's name
+        barcode_dir = "barcodes"
         ensure_directory(barcode_dir)
 
         # If an output_name is provided by the user
@@ -149,13 +151,11 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
 
         destination_path = path.join(barcode_dir, destination_name)
     else:
-        # Use absolute path as-is; if relative, make it relative to project root
         destination_path = args.destination_path
-        if not path.isabs(destination_path):
-            destination_path = path.join(project_root, destination_path)
         # Ensure parent directory exists if user provided a custom path
-        parent_dir = path.dirname(destination_path) or "."
-        ensure_directory(parent_dir)
+        parent_dir = path.dirname(destination_path)
+        if parent_dir:
+            ensure_directory(parent_dir)
 
     if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
         # Convert BGRA -> RGBA once at save-time
@@ -167,7 +167,7 @@ def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Names
         image = Image.fromarray(barcode_to_save, "RGB")
 
     image.save(destination_path)
-    logging.info("File saved at '%s'", destination_path)
+    logging.info("File saved at '%s'", path.abspath(destination_path))
 
 
 def ensure_directory(directory_name: str) -> None:
@@ -176,5 +176,4 @@ def ensure_directory(directory_name: str) -> None:
 
     :param str directory_name: The name of the directory to ensure.
     """
-    if not path.exists(directory_name):
-        makedirs(directory_name)
+    makedirs(directory_name, exist_ok=True)

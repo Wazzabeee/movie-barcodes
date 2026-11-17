@@ -22,9 +22,7 @@ jobs:
       uses: astral-sh/setup-uv@v3
     - name: Install dependencies and run tests
       run: |
-        uv venv
-        uv pip install -r requirements.txt
-        uv pip install pytest pytest-cov
+        uv sync --locked
         uv run pytest tests/ --cov=src --cov-report=xml
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
@@ -49,7 +47,6 @@ jobs:
     - name: Run pre-commit (Ruff and hooks)
       run: |
         uvx pre-commit run --all-files --show-diff-on-failure
-    continue-on-error: true
 
   release:
     needs: [ test, good-practices ]

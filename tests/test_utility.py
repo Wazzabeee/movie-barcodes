@@ -1,8 +1,12 @@
 import unittest
 import argparse
+import os
+import shutil
+import tempfile
 from unittest.mock import patch, MagicMock, Mock
 import cv2
 import numpy as np
+from PIL import Image
 
 
 from movie_barcodes import utility
@@ -36,6 +40,7 @@ class TestUtility(unittest.TestCase):
         patcher_access = patch("movie_barcodes.utility.access", return_value=True)
         self.addCleanup(patcher_exists.stop)
         self.addCleanup(patcher_access.stop)
+        self.patcher_exists = patcher_exists
         self.mock_exists = patcher_exists.start()
         self.mock_access = patcher_access.start()
 
@@ -158,21 +163,29 @@ class TestUtility(unittest.TestCase):
         """
         utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
-    @patch("movie_barcodes.utility.makedirs")
-    @patch("movie_barcodes.utility.path.exists")
-    def test_ensure_directory_creates_directory(self, mock_exists: MagicMock, mock_makedirs: MagicMock) -> None:
+    def test_destination_in_missing_directory_is_valid(self) -> None:
         """
-        Test ensure_directory creates the directory when it does not exist.
-        :param mock_exists: MagicMock object for path.exists function to return False
+        A destination inside a directory that does not exist yet is accepted when its closest existing
+        ancestor is writable (the directory is created at save time).
+        :return: None
+        """
+        self.patcher_exists.stop()
+        with tempfile.TemporaryDirectory() as tmp:
+            self.args.input_video_path = "tests/sample.mp4"
+            self.args.destination_path = os.path.join(tmp, "new", "nested", "out.png")
+            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self.mock_access.assert_called_with(tmp, utility.W_OK)
+
+    @patch("movie_barcodes.utility.makedirs")
+    def test_ensure_directory_creates_directory(self, mock_makedirs: MagicMock) -> None:
+        """
+        Test ensure_directory creates the directory (and does not fail if it already exists).
         :param mock_makedirs: MagicMock object for os.makedirs function
         :return: None
         """
-        mock_exists.return_value = False  # Simulate directory does not exist
-
         utility.ensure_directory(self.args.destination_path)
 
-        mock_exists.assert_called_once_with(self.args.destination_path)
-        mock_makedirs.assert_called_once_with(self.args.destination_path)
+        mock_makedirs.assert_called_once_with(self.args.destination_path, exist_ok=True)
 
     def test_format_time_seconds_only(self) -> None:
         """
@@ -288,110 +301,73 @@ class TestUtility(unittest.TestCase):
         mock_video.get.assert_any_call(cv2.CAP_PROP_FPS)
         mock_getsize.assert_called_once_with(args.input_video_path)
 
-    @patch("movie_barcodes.utility.path.join")
-    @patch("movie_barcodes.utility.Image.fromarray")
-    @patch("movie_barcodes.utility.path.dirname")
-    @patch("movie_barcodes.utility.path.abspath")
-    def test_save_barcode_image_variations(
-        self,
-        mock_abspath: MagicMock,
-        mock_dirname: MagicMock,
-        mock_fromarray: MagicMock,
-        mock_path_join: MagicMock,
-    ) -> None:
+    def _save_in_tmp_cwd(self, args: argparse.Namespace, barcode: np.ndarray = None) -> str:
         """
-        Test variations of save_barcode_image behavior based on different argument conditions.
-        :param mock_abspath: MagicMock object for path.abspath function
-        :param mock_dirname: MagicMock object for path.dirname function
-        :param mock_fromarray: MagicMock object for Image.fromarray function
-        :param mock_path_join: MagicMock object for path.join function
-        :return: None
+        Run save_barcode_image from a temporary working directory and return that directory.
         """
-        # Mock the directory and path handling
-        mock_abspath.return_value = "/fake/dir/module.py"
-        mock_dirname.side_effect = lambda x: x.rsplit("/", 1)[0]  # Simulates dirname behavior
-        mock_path_join.side_effect = lambda *args: "/".join(args)  # Simulates os.path.join behavior
-
-        # Setup a fake barcode and base name
-        barcode = np.zeros((100, 100, 3), dtype=np.uint8)
-        base_name = "video_sample"
-
-        # Test without workers and without output name
-        args_without_workers = argparse.Namespace(
-            destination_path=None, output_name=None, barcode_type="type1", workers=None
-        )
-        utility.save_barcode_image(barcode, base_name, args_without_workers, "avg")
-        self.assertTrue("workers_" not in mock_path_join.call_args[0][-1])
-
-        # Test with workers
-        args_with_workers = argparse.Namespace(destination_path=None, output_name=None, barcode_type="type1", workers=4)
-        utility.save_barcode_image(barcode, base_name, args_with_workers, "avg")
-        self.assertTrue("workers_4" in mock_path_join.call_args[0][-1])
-
-        # Test with output name
-        args_with_output_name = argparse.Namespace(
-            destination_path=None,
-            output_name="custom_name",
-            barcode_type="type1",
-            workers=None,
-        )
-        utility.save_barcode_image(barcode, base_name, args_with_output_name, "avg")
-        self.assertIn("custom_name.png", mock_path_join.call_args[0][-1])
-
-        # Test file naming without output name
-        utility.save_barcode_image(barcode, base_name, args_without_workers, "avg")
-        expected_name_parts = [base_name, "avg", "type1"]
-        expected_name = "_".join(expected_name_parts) + ".png"
-        self.assertIn(expected_name, mock_path_join.call_args[0][-1])
-
-        # Test image saving
-        mock_image = mock_fromarray.return_value
-        utility.save_barcode_image(barcode, base_name, args_without_workers, "avg")
-        mock_image.save.assert_called()  # Ensure the image is attempted to be saved
-
-    @patch("movie_barcodes.utility.path.join")
-    @patch("movie_barcodes.utility.Image.fromarray")
-    @patch("movie_barcodes.utility.path.isabs")
-    @patch("movie_barcodes.utility.path.dirname")
-    @patch("movie_barcodes.utility.path.abspath")
-    def test_save_barcode_image_with_relative_destination_path(
-        self,
-        mock_abspath: MagicMock,
-        mock_dirname: MagicMock,
-        mock_isabs: MagicMock,
-        mock_fromarray: MagicMock,
-        mock_path_join: MagicMock,
-    ) -> None:
-        """
-        When a relative destination_path is provided, ensure it is resolved relative to project root.
-        """
-        mock_abspath.return_value = "/fake/root/src/movie_barcodes/utility.py"
-        # save_barcode_image calls dirname four times:
-        # 1) dirname(abspath(...)) => current_dir
-        # 2) dirname(current_dir)
-        # 3) dirname(<above>) => project root
-        # 4) dirname(resolved destination_path) => parent dir
-        mock_dirname.side_effect = [
-            "/fake/root/src/movie_barcodes",  # dirname of abspath
-            "/fake/root/src",  # inner dirname(current_dir)
-            "/fake/root",  # outer dirname(<above>) => project root
-            "/fake/root/relative",  # parent dir of destination_path
-        ]
-        mock_isabs.return_value = False
-        mock_path_join.side_effect = lambda *args: "/".join(args)
-
-        barcode = np.zeros((2, 2, 3), dtype=np.uint8)
-        args = argparse.Namespace(
-            destination_path="relative/output.png",
-            output_name=None,
-            barcode_type="type1",
-            workers=None,
-        )
-
+        if barcode is None:
+            barcode = np.zeros((10, 10, 3), dtype=np.uint8)
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        cwd = os.getcwd()
+        os.chdir(tmp)
+        self.addCleanup(os.chdir, cwd)
         utility.save_barcode_image(barcode, "video_sample", args, "avg")
+        return tmp
 
-        expected_saved_path = "/fake/root/relative/output.png"
-        mock_fromarray.return_value.save.assert_called_with(expected_saved_path)
+    def test_save_barcode_image_default_location_is_cwd(self) -> None:
+        """
+        Without destination_path, the image is saved in ./barcodes relative to the current working directory
+        (not relative to the package location, which is site-packages once installed).
+        """
+        self.patcher_exists.stop()
+        args = argparse.Namespace(destination_path=None, output_name=None, barcode_type="type1", workers=None)
+        tmp = self._save_in_tmp_cwd(args)
+        self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "video_sample_avg_type1.png")))
+
+    def test_save_barcode_image_variations(self) -> None:
+        """
+        Test file naming variations of save_barcode_image based on workers and output_name.
+        """
+        self.patcher_exists.stop()
+        args = argparse.Namespace(destination_path=None, output_name=None, barcode_type="type1", workers=4)
+        tmp = self._save_in_tmp_cwd(args)
+        self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "video_sample_avg_type1_workers_4.png")))
+
+        args = argparse.Namespace(destination_path=None, output_name="custom_name", barcode_type="type1", workers=4)
+        tmp = self._save_in_tmp_cwd(args)
+        self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "custom_name.png")))
+
+    def test_save_barcode_image_with_relative_destination_path(self) -> None:
+        """
+        A relative destination_path is resolved relative to the current working directory, and missing
+        parent directories are created.
+        """
+        self.patcher_exists.stop()
+        args = argparse.Namespace(
+            destination_path="relative/output.png", output_name=None, barcode_type="type1", workers=None
+        )
+        tmp = self._save_in_tmp_cwd(args)
+        self.assertTrue(os.path.isfile(os.path.join(tmp, "relative", "output.png")))
+
+    def test_save_barcode_image_converts_bgr_to_rgb(self) -> None:
+        """
+        Barcodes are BGR(A) internally and must be saved as RGB(A).
+        """
+        self.patcher_exists.stop()
+        bgr = np.zeros((2, 2, 3), dtype=np.uint8)
+        bgr[..., 0] = 255  # pure blue in BGR
+        args = argparse.Namespace(destination_path="out.png", output_name=None, barcode_type="type1", workers=None)
+        tmp = self._save_in_tmp_cwd(args, bgr)
+        saved = np.asarray(Image.open(os.path.join(tmp, "out.png")))
+        np.testing.assert_array_equal(saved[0, 0], [0, 0, 255])
+
+        bgra = np.zeros((2, 2, 4), dtype=np.uint8)
+        bgra[..., 0] = 255
+        bgra[..., 3] = 255
+        tmp = self._save_in_tmp_cwd(args, bgra)
+        saved = np.asarray(Image.open(os.path.join(tmp, "out.png")))
+        np.testing.assert_array_equal(saved[0, 0], [0, 0, 255, 255])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,4 @@
-import functools
 import os
-import pickle
 import sys
 import tempfile
 import unittest
@@ -103,7 +101,29 @@ class TestDetectContentArea(unittest.TestCase):
             self.assertEqual(video_processing.detect_content_area(video_path, 40), (0, 0, WIDTH, HEIGHT))
 
 
-class TestCropAndExtract(unittest.TestCase):
+class FrameCapture:
+    """
+    Minimal stand-in for cv2.VideoCapture whose every frame is `frame`.
+    """
+
+    def __init__(self, frame: np.ndarray, frame_count: int) -> None:
+        self.frame = frame
+        self.frame_count = frame_count
+        self.pos = 0
+
+    def grab(self) -> bool:
+        self.pos += 1
+        return self.pos <= self.frame_count
+
+    def read(self) -> tuple:
+        self.pos += 1
+        return (True, self.frame.copy()) if self.pos <= self.frame_count else (False, None)
+
+    def release(self) -> None:
+        pass
+
+
+class TestCropFrame(unittest.TestCase):
     """
     Colors extracted from cropped frames.
     """
@@ -113,7 +133,7 @@ class TestCropAndExtract(unittest.TestCase):
         rect = video_processing.find_content_area([frame])
 
         uncropped = get_dominant_color_mean(frame)
-        cropped = video_processing.crop_and_extract(frame, get_dominant_color_mean, rect)
+        cropped = get_dominant_color_mean(video_processing.crop_frame(frame, rect))
 
         self.assertLess(uncropped[0], CONTENT_VALUE - 50)
         np.testing.assert_allclose(cropped, [CONTENT_VALUE] * 3)
@@ -123,17 +143,52 @@ class TestCropAndExtract(unittest.TestCase):
         rect = video_processing.find_content_area([frame])
         for method in ["avg", "hsv", "bgr", "kmeans", "smoothed"]:
             with self.subTest(method=method):
-                color = video_processing.crop_and_extract(frame, get_dominant_color_function(method), rect)
+                color = get_dominant_color_function(method)(video_processing.crop_frame(frame, rect))
                 self.assertGreater(float(np.mean(color)), CONTENT_VALUE - 10)
 
-    def test_cropping_extractor_is_picklable(self) -> None:
-        extractor = main.get_color_function("avg", (0, 40, WIDTH, HEIGHT - 80))
-        self.assertIsInstance(extractor, functools.partial)
-        restored = pickle.loads(pickle.dumps(extractor))
-        np.testing.assert_allclose(restored(make_frame(top=40, bottom=40)), [CONTENT_VALUE] * 3)
+    def test_crop_is_a_view(self) -> None:
+        frame = make_frame(top=40, bottom=40)
+        cropped = video_processing.crop_frame(frame, (0, 40, WIDTH, HEIGHT - 80))
+        self.assertEqual(cropped.shape, (HEIGHT - 80, WIDTH, 3))
+        self.assertTrue(np.shares_memory(cropped, frame))
 
-    def test_no_crop_returns_plain_extractor(self) -> None:
-        self.assertIs(main.get_color_function("avg"), get_dominant_color_mean)
+    def test_no_crop_returns_frame(self) -> None:
+        frame = make_frame()
+        self.assertIs(video_processing.crop_frame(frame, None), frame)
+
+    def test_extract_colors_crops_every_frame(self) -> None:
+        capture = FrameCapture(make_frame(top=40, bottom=40), frame_count=10)
+        rect = (0, 40, WIDTH, HEIGHT - 80)
+        extractors = {"avg": get_dominant_color_mean, "shape": lambda frame: frame.shape}
+        with patch("cv2.VideoCapture", return_value=capture):
+            colors = video_processing.extract_colors("dummy.mp4", 0, 9, extractors, 5, crop_rect=rect)
+
+        self.assertEqual(colors["shape"], [(HEIGHT - 80, WIDTH, 3)] * 5)  # Every extractor gets the cropped frame
+        for color in colors["avg"]:
+            np.testing.assert_allclose(color, [CONTENT_VALUE] * 3)
+
+    def test_parallel_crop_matches_sequential(self) -> None:
+        """
+        The crop area reaches the worker processes: parallel and sequential extractions give the same colors.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            video_path = os.path.join(directory, "video.avi")
+            writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"MJPG"), 25, (WIDTH, HEIGHT))
+            if not writer.isOpened():
+                self.skipTest("MJPG video writer is not available")
+            for _ in range(20):
+                writer.write(make_frame(top=40, bottom=40))
+            writer.release()
+
+            rect = (0, 40, WIDTH, HEIGHT - 80)
+            sequential = video_processing.extract_colors(video_path, 0, 19, get_dominant_color_mean, 6, crop_rect=rect)
+            parallel = video_processing.parallel_extract_colors(
+                video_path, 20, get_dominant_color_mean, 2, 6, crop_rect=rect
+            )
+
+        self.assertEqual(len(parallel), 6)
+        np.testing.assert_array_equal(np.array(parallel), np.array(sequential))
+        np.testing.assert_allclose(np.array(parallel), CONTENT_VALUE, atol=3)
 
 
 class TestCropBordersIntegration(unittest.TestCase):

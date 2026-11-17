@@ -1,7 +1,9 @@
+import functools
 import logging
-import queue
 import multiprocessing
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+import queue
+from contextlib import closing
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
@@ -137,104 +139,60 @@ def detect_content_area(video_path: str, frame_count: int) -> Rect:
     return find_content_area(frames) or (0, 0, frame_width, frame_height)
 
 
-def crop_and_extract(frame: np.ndarray, color_extractor: Callable, crop_rect: Rect):
+def crop_frame(frame: np.ndarray, crop_rect: Optional[Rect]) -> np.ndarray:
     """
-    Crop a frame to the given area, then extract its color.
-
-    Module-level function so that functools.partial(crop_and_extract, ...) can be sent to worker processes.
+    Crop a frame to the given area.
 
     :param np.ndarray frame: The frame as a NumPy array.
-    :param Callable color_extractor: A function to extract the dominant color from a frame.
-    :param Rect crop_rect: (x, y, w, h) of the area to keep.
-    :return: The output of color_extractor on the cropped frame.
+    :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep, or None to keep the whole frame.
+    :return: np.ndarray: A view of the cropped area (no copy).
     """
+    if crop_rect is None:
+        return frame
     x, y, w, h = crop_rect
-    return color_extractor(frame[y : y + h, x : x + w])
+    return frame[y : y + h, x : x + w]
 
 
-def parallel_extract_colors(
-    video_path: str,
-    frame_count: int,
-    color_extractor: ColorExtractors,
-    workers: int,
-    target_frames: Optional[int] = None,
-) -> Union[List, Dict[str, List]]:
+def _sample_count(start_frame: int, end_frame: int, n_samples: Optional[int]) -> int:
     """
-    Extract dominant colors from frames in a video file using parallel processing.
-
-    :param str video_path: The path to the video file.
-    :param int frame_count: The total number of frames in the video.
-    :param color_extractor: A function to extract the dominant color from a frame, or a dict
-        {method_name: function} to run several extractors on the same decoded frames.
-    :param int workers: Number of parallel workers.
-    :param Optional[int] target_frames: The total number of frames to sample.
-    :return: List of dominant colors for the frames in the video, or {method_name: list of colors}
-        when a dict of extractors is given.
+    Number of frames actually sampled from [start_frame, end_frame]: n_samples, capped by the size of the range
+    (every frame of the range if n_samples is None or 0).
     """
-    if target_frames is None:
-        target_frames = frame_count
+    total_frames = end_frame - start_frame + 1
+    if not n_samples or n_samples > total_frames:
+        return total_frames
+    return n_samples
 
-    # Cap workers to available work to avoid empty tasks
-    active_workers = max(1, min(workers, frame_count, target_frames))
 
-    # Evenly distribute frame ranges across active workers
-    base_frames = frame_count // active_workers
-    remainder_frames = frame_count % active_workers
-    frame_ranges = []
-    start = 0
-    for i in range(active_workers):
-        length = base_frames + (1 if i < remainder_frames else 0)
-        end = start + length - 1
-        frame_ranges.append((start, end))
-        start = end + 1
+def _seek_exact(video: cv2.VideoCapture, frame_index: int) -> bool:
+    """
+    Position a freshly opened capture so that the next read() returns frame_index.
 
-    # Evenly distribute target samples ensuring total equals target_frames
-    base_samples = target_frames // active_workers
-    remainder_samples = target_frames % active_workers
-    samples_per_worker = [base_samples + (1 if i < remainder_samples else 0) for i in range(active_workers)]
+    Seeking can land on a nearby keyframe instead of the requested frame, so the position reported by the backend
+    is checked and the remaining frames are grabbed (decoded without conversion) up to frame_index.
 
-    # Build only tasks that have at least one sample (avoid passing 0 -> falsy)
-    task_args = []
-    for i in range(active_workers):
-        if samples_per_worker[i] <= 0:
-            continue
-        start_frame, end_frame = frame_ranges[i]
-        if end_frame < start_frame:
-            continue
-        task_args.append(
-            (
-                video_path,
-                start_frame,
-                end_frame,
-                color_extractor,
-                samples_per_worker[i],
+    :param cv2.VideoCapture video: A capture that has not read any frame yet.
+    :param int frame_index: The index of the frame the next read() must return.
+    :return: False if the video ends before frame_index (over-reported frame count), True otherwise.
+    """
+    position = 0
+    if frame_index >= SEEK_FROM_START_FRAMES:
+        # Seek to the target, then back off once if the backend overshot it
+        for seek_to in (frame_index, frame_index - SEEK_FROM_START_FRAMES):
+            video.set(cv2.CAP_PROP_POS_FRAMES, seek_to)
+            position = int(video.get(cv2.CAP_PROP_POS_FRAMES))
+            if position <= frame_index:
+                break
+        else:
+            logging.warning(
+                "Seek overshot frame %d (landed on %d), colors may be slightly shifted.", frame_index, position
             )
-        )
+            return True
 
-    # Workers don't draw their own bar (N bars on one terminal garble the output): they report each
-    # processed frame to a shared queue, and the parent process draws a single global bar.
-    total_samples = sum(min(args[4], args[2] - args[1] + 1) for args in task_args)
-    with MP_CONTEXT.Manager() as manager, MP_CONTEXT.Pool(active_workers) as pool:
-        progress_queue = manager.Queue()
-        task_args = [args + (False, progress_queue) for args in task_args]
-        async_result = pool.starmap_async(extract_colors, task_args)
-        with tqdm(total=total_samples, desc="Processing frames") as progress_bar:
-            # Poll ready() rather than blocking on the queue, so a worker that raises can't hang us
-            while not async_result.ready():
-                try:
-                    progress_bar.update(progress_queue.get(timeout=0.1))
-                except queue.Empty:
-                    pass
-            while not progress_queue.empty():
-                progress_bar.update(progress_queue.get())
-            results = async_result.get()  # Re-raises a worker's exception
-            # Workers may return fewer frames than requested (end of video): still end at 100%
-            progress_bar.update(total_samples - progress_bar.n)
-
-    # Concatenate results from all workers, in frame order
-    if isinstance(color_extractor, dict):
-        return {name: [color for colors in results for color in colors[name]] for name in color_extractor}
-    return [color for colors in results for color in colors]
+    for _ in range(frame_index - position):
+        if not video.grab():
+            return False
+    return True
 
 
 def _skip_to(video: cv2.VideoCapture, position: int, target: int) -> int:
@@ -267,6 +225,54 @@ def _skip_to(video: cv2.VideoCapture, position: int, target: int) -> int:
     return position
 
 
+def iter_sampled_frames(
+    video_path: str,
+    start_frame: int,
+    end_frame: int,
+    n_samples: Optional[int] = None,
+    crop_rect: Optional[Rect] = None,
+) -> Iterator[Tuple[int, np.ndarray]]:
+    """
+    Decode n_samples frames spread evenly over [start_frame, end_frame], in order.
+
+    All color extraction goes through it: it positions the capture exactly on start_frame (_seek_exact),
+    reaches each next sample by grabbing or seeking depending on the gap (_skip_to), stops early if the video
+    is shorter than its reported frame count, and crops each frame to crop_rect. (detect_content_area samples
+    its few frames on its own: approximate seeks are enough there.)
+    The capture is released when the iterator is exhausted or closed.
+
+    :param str video_path: The path to the video file.
+    :param int start_frame: The index of the first frame of the range.
+    :param int end_frame: The index of the last frame of the range.
+    :param Optional[int] n_samples: Number of frames to sample; every frame of the range if None, 0 or larger
+        than the range.
+    :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep in each frame, or None for the full frame.
+    :return: Iterator of (frame index, frame) pairs. The index is the one the capture reports, which can differ
+        from the requested one if a seek overshoots.
+    """
+    total_frames = end_frame - start_frame + 1
+    n_samples = _sample_count(start_frame, end_frame, n_samples)
+
+    video = cv2.VideoCapture(video_path)
+    try:
+        if not _seek_exact(video, start_frame):
+            # The frame count is only an estimate for some containers: this range starts past the real end
+            return
+
+        position = start_frame  # Index of the frame the next read() will return
+        for i in range(n_samples):
+            # Spread samples evenly over the whole range, so the end of the range is sampled too
+            # (an integer step total_frames // n_samples would leave up to ~half the range unsampled)
+            position = _skip_to(video, position, start_frame + i * total_frames // n_samples)
+            ret, frame = video.read()
+            if not ret:
+                return
+            yield position, crop_frame(frame, crop_rect)
+            position += 1
+    finally:
+        video.release()
+
+
 def extract_colors(
     video_path: str,
     start_frame: int,
@@ -275,11 +281,12 @@ def extract_colors(
     target_frames: Optional[int] = None,
     show_progress: bool = True,
     progress_queue: Optional[Any] = None,
+    crop_rect: Optional[Rect] = None,
 ) -> Union[List, Dict[str, List]]:
     """
-    Extracts dominant colors from frames in a video file.
+    Extracts dominant colors from frames sampled over a range of a video file.
 
-    :param str video_path: The video capture object.
+    :param str video_path: The path to the video file.
     :param int start_frame: The index of the first frame to process.
     :param int end_frame: The index of the last frame to process.
     :param color_extractor: A function to extract the dominant color from a frame, or a dict
@@ -288,72 +295,102 @@ def extract_colors(
     :param bool show_progress: Whether to display a progress bar for this call.
     :param Optional[Any] progress_queue: If given, put 1 on this queue for each processed frame
         (used by parallel_extract_colors to drive a single global progress bar).
+    :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep in each frame, or None for the full frame.
     :return: List of dominant colors from the sampled frames, or {method_name: list of colors}
         when a dict of extractors is given.
     """
     extractors = color_extractor if isinstance(color_extractor, dict) else {None: color_extractor}
     colors: Dict = {name: [] for name in extractors}
 
-    def result() -> Union[List, Dict[str, List]]:
-        return colors if isinstance(color_extractor, dict) else colors[None]
+    frames = iter_sampled_frames(video_path, start_frame, end_frame, target_frames, crop_rect)
+    total = _sample_count(start_frame, end_frame, target_frames)
+    with closing(frames):
+        for _, frame in tqdm(frames, total=total, desc="Processing frames", disable=not show_progress):
+            for name, extractor in extractors.items():
+                colors[name].append(extractor(frame))
+            if progress_queue is not None:
+                progress_queue.put(1)
 
-    video = cv2.VideoCapture(video_path)
-    if not _seek_exact(video, start_frame):
-        # The frame count is only an estimate for some containers: this range starts past the real end
-        video.release()
-        return result()
-
-    total_frames = end_frame - start_frame + 1
-    if not target_frames or target_frames > total_frames:
-        target_frames = total_frames
-
-    position = 0  # Offset (relative to start_frame) of the next frame read() will return
-
-    for i in tqdm(range(target_frames), desc="Processing frames", disable=not show_progress):
-        # Spread samples evenly over the whole range, so the end of the range is sampled too
-        # (an integer step total_frames // target_frames would leave up to ~half the range unsampled)
-        target_offset = i * total_frames // target_frames
-        position = _skip_to(video, start_frame + position, start_frame + target_offset) - start_frame
-        ret, frame = video.read()
-        position += 1
-        if not ret:
-            break
-        for name, extractor in extractors.items():
-            colors[name].append(extractor(frame))
-        if progress_queue is not None:
-            progress_queue.put(1)
-
-    video.release()
-
-    return result()
+    return colors if isinstance(color_extractor, dict) else colors[None]
 
 
-def _seek_exact(video: cv2.VideoCapture, frame_index: int) -> bool:
+def _split_work(frame_count: int, target_frames: int, workers: int) -> List[Tuple[int, int, int]]:
     """
-    Position a freshly opened capture so that the next read() returns frame_index.
+    Split the video into contiguous frame ranges, one per worker, and the samples evenly between them.
 
-    Seeking can land on a nearby keyframe instead of the requested frame, so the position reported by the backend
-    is checked and the remaining frames are grabbed (decoded without conversion) up to frame_index.
-
-    :param cv2.VideoCapture video: A capture that has not read any frame yet.
-    :param int frame_index: The index of the frame the next read() must return.
-    :return: False if the video ends before frame_index (over-reported frame count), True otherwise.
+    :param int frame_count: The total number of frames in the video.
+    :param int target_frames: The total number of frames to sample.
+    :param int workers: Number of parallel workers.
+    :return: List of (start_frame, end_frame, n_samples), in frame order, for the workers that have something
+        to sample. The n_samples add up to target_frames.
     """
-    position = 0
-    if frame_index >= SEEK_FROM_START_FRAMES:
-        # Seek to the target, then back off once if the backend overshot it
-        for seek_to in (frame_index, frame_index - SEEK_FROM_START_FRAMES):
-            video.set(cv2.CAP_PROP_POS_FRAMES, seek_to)
-            position = int(video.get(cv2.CAP_PROP_POS_FRAMES))
-            if position <= frame_index:
-                break
-        else:
-            logging.warning(
-                "Seek overshot frame %d (landed on %d), colors may be slightly shifted.", frame_index, position
-            )
-            return True
+    # Cap workers to available work to avoid empty tasks
+    active_workers = max(1, min(workers, frame_count, target_frames))
 
-    for _ in range(frame_index - position):
-        if not video.grab():
-            return False
-    return True
+    tasks = []
+    start = 0
+    for i in range(active_workers):
+        length = frame_count // active_workers + (1 if i < frame_count % active_workers else 0)
+        samples = target_frames // active_workers + (1 if i < target_frames % active_workers else 0)
+        end = start + length - 1
+        if samples > 0 and end >= start:
+            tasks.append((start, end, samples))
+        start = end + 1
+    return tasks
+
+
+def parallel_extract_colors(
+    video_path: str,
+    frame_count: int,
+    color_extractor: ColorExtractors,
+    workers: int,
+    target_frames: Optional[int] = None,
+    crop_rect: Optional[Rect] = None,
+) -> Union[List, Dict[str, List]]:
+    """
+    Extract dominant colors from frames in a video file using parallel processing.
+
+    Each worker runs extract_colors on its own range of the video; the results are concatenated in frame order.
+
+    :param str video_path: The path to the video file.
+    :param int frame_count: The total number of frames in the video.
+    :param color_extractor: A function to extract the dominant color from a frame, or a dict
+        {method_name: function} to run several extractors on the same decoded frames.
+    :param int workers: Number of parallel workers.
+    :param Optional[int] target_frames: The total number of frames to sample.
+    :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep in each frame, or None for the full frame.
+    :return: List of dominant colors for the frames in the video, or {method_name: list of colors}
+        when a dict of extractors is given.
+    """
+    if target_frames is None:
+        target_frames = frame_count
+
+    tasks = _split_work(frame_count, target_frames, workers)
+    task_args = [(video_path, start, end, color_extractor, samples) for start, end, samples in tasks]
+    total_samples = sum(_sample_count(start, end, samples) for start, end, samples in tasks)
+
+    # Workers don't draw their own bar (N bars on one terminal garble the output): they report each
+    # processed frame to a shared queue, and the parent process draws a single global bar.
+    with MP_CONTEXT.Manager() as manager, MP_CONTEXT.Pool(max(1, len(tasks))) as pool:
+        progress_queue = manager.Queue()
+        worker = functools.partial(
+            extract_colors, show_progress=False, progress_queue=progress_queue, crop_rect=crop_rect
+        )
+        async_result = pool.starmap_async(worker, task_args)
+        with tqdm(total=total_samples, desc="Processing frames") as progress_bar:
+            # Poll ready() rather than blocking on the queue, so a worker that raises can't hang us
+            while not async_result.ready():
+                try:
+                    progress_bar.update(progress_queue.get(timeout=0.1))
+                except queue.Empty:
+                    pass
+            while not progress_queue.empty():
+                progress_bar.update(progress_queue.get())
+            results = async_result.get()  # Re-raises a worker's exception
+            # Workers may return fewer frames than requested (end of video): still end at 100%
+            progress_bar.update(total_samples - progress_bar.n)
+
+    # Concatenate results from all workers, in frame order
+    if isinstance(color_extractor, dict):
+        return {name: [color for colors in results for color in colors[name]] for name in color_extractor}
+    return [color for colors in results for color in colors]

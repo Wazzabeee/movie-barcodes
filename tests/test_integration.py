@@ -3,6 +3,7 @@ import unittest
 import os
 import glob
 import sys
+import tempfile
 from unittest.mock import patch
 
 from PIL import Image
@@ -97,6 +98,29 @@ class TestIntegration(unittest.TestCase):
             main.main()
         with Image.open("barcodes/sample_dimensions_check.png") as image:
             self.assertEqual(image.size, (40, 25))
+
+    def test_all_methods_decodes_video_once(self):
+        """
+        With --all_methods, frames are extracted in a single pass and one image is saved per method.
+        """
+        video_path = os.path.abspath(self.input_video_path)
+        args = ["movie-barcodes", "-i", video_path, "-a", "-w", "1", "--width", "20", "--height", "10"]
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.chdir(tmp_dir)
+            try:
+                with (
+                    patch.object(sys, "argv", args),
+                    patch.object(main, "extract_colors", wraps=main.extract_colors) as extract_spy,
+                ):
+                    main.main()
+                saved = sorted(os.listdir("barcodes"))
+            finally:
+                os.chdir(cwd)
+
+        self.assertEqual(extract_spy.call_count, 1)
+        methods = ["avg", "bgr", "hsv", "kmeans", "smoothed"]
+        self.assertEqual(saved, [f"sample_{method}_horizontal_workers_1.png" for method in methods])
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 import argparse
+import functools
 import logging
 import sys
 import time
 
-from typing import Callable
+from typing import Callable, Optional
 from os import cpu_count, path
 
 from .barcode_generation import generate_circular_barcode, generate_barcode
@@ -15,7 +16,13 @@ from .utility import (
     get_video_properties,
     validate_args,
 )
-from .video_processing import load_video, extract_colors, parallel_extract_colors
+from .video_processing import (
+    load_video,
+    extract_colors,
+    parallel_extract_colors,
+    detect_content_area,
+    crop_and_extract,
+)
 
 MAX_PROCESSES = cpu_count() or 1
 MIN_FRAME_COUNT = 2
@@ -35,6 +42,21 @@ def get_target_frames(args: argparse.Namespace, frame_count: int, frame_width: i
     if args.width is not None:
         return args.width
     return max(1, min(frame_width, frame_count))
+
+
+def get_color_function(method: str, crop_rect: Optional[tuple] = None) -> Callable:
+    """
+    Return the color extraction function for a method, cropping frames to crop_rect first if given.
+
+    :param method: The method used to extract the dominant color
+    :param crop_rect: (x, y, w, h) of the area to keep in each frame, or None to use the full frame
+    :return: The function to extract the dominant color from a frame
+    """
+    color_function = get_dominant_color_function(method)
+    if crop_rect is None:
+        return color_function
+    # functools.partial of a module-level function stays picklable for multiprocessing workers
+    return functools.partial(crop_and_extract, color_extractor=color_function, crop_rect=crop_rect)
 
 
 def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
@@ -186,6 +208,12 @@ def main() -> None:
         help="If provided, all methods to extract dominant color will be used to create barcodes. Overrides --method "
         "argument.",
     )
+    parser.add_argument(
+        "--crop-borders",
+        action="store_true",
+        help="If provided, detect black borders (letterbox / pillarbox) once and ignore them when extracting "
+        "colors. Default is False.",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -195,19 +223,28 @@ def main() -> None:
         raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
 
     # Validate and process video file
-    video, frame_count, _, _ = load_video(args.input_video_path)
+    video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
     video.release()
     validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
+
+    # Detect black borders once for the whole run
+    crop_rect = None
+    if args.crop_borders:
+        crop_rect = detect_content_area(args.input_video_path, frame_count)
+        _, _, crop_width, crop_height = crop_rect
+        if (crop_width, crop_height) == (frame_width, frame_height):
+            logging.info("Cropping borders: no black borders detected")
+            crop_rect = None
+        else:
+            logging.info("Cropping borders: %dx%d -> %dx%d", frame_width, frame_height, crop_width, crop_height)
 
     # Choose the method to generate barcode
     methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"]
     if args.all_methods:
         for method in methods:
-            dominant_color_function = get_dominant_color_function(method)
-            generate_and_save_barcode(args, dominant_color_function, method)
+            generate_and_save_barcode(args, get_color_function(method, crop_rect), method)
     else:
-        dominant_color_function = get_dominant_color_function(args.method)
-        generate_and_save_barcode(args, dominant_color_function, args.method)
+        generate_and_save_barcode(args, get_color_function(args.method, crop_rect), args.method)
 
 
 if __name__ == "__main__":

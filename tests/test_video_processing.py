@@ -254,6 +254,102 @@ class TestVideoProcessing(unittest.TestCase):
         self.assertGreaterEqual(colors[-1], 97)
         self.assertEqual(colors, sorted(set(colors)))
 
+    @staticmethod
+    def _fake_capture(mock_video: MagicMock, real_frames: int, keyframe_interval: int = 1, overshoot: int = 0) -> list:
+        """
+        Make the mocked capture behave like a video of real_frames frames whose frames are their own index.
+        A seek lands on the previous keyframe (plus overshoot) and get(POS_FRAMES) reports where it landed.
+        Returns the list of seek targets.
+        """
+        instance = mock_video.return_value
+        current = [0]
+        seeks = []
+
+        def set_side_effect(prop, value):
+            seeks.append(value)
+            current[0] = min(real_frames, value - value % keyframe_interval + overshoot)
+            return True
+
+        def get_side_effect(prop):
+            return float(current[0])
+
+        def grab_side_effect():
+            if current[0] >= real_frames:
+                return False
+            current[0] += 1
+            return True
+
+        def read_side_effect():
+            if current[0] >= real_frames:
+                return False, None
+            current[0] += 1
+            return True, current[0] - 1
+
+        instance.set.side_effect = set_side_effect
+        instance.get.side_effect = get_side_effect
+        instance.grab.side_effect = grab_side_effect
+        instance.read.side_effect = read_side_effect
+        return seeks
+
+    @patch("cv2.VideoCapture")
+    def test_seek_lands_on_earlier_keyframe(self, mock_video: MagicMock) -> None:
+        """
+        When the backend lands on an earlier keyframe, the worker grabs forward to its exact start frame.
+        """
+        self._fake_capture(mock_video, real_frames=1000, keyframe_interval=100)
+
+        colors = video_processing.extract_colors(self.video_path, 537, 636, self.mock_color_extractor, 10)
+
+        self.assertEqual(colors[0], 537)
+        self.assertEqual(colors, [537 + i * 10 for i in range(10)])
+
+    @patch("cv2.VideoCapture")
+    def test_seek_overshoot_backs_off(self, mock_video: MagicMock) -> None:
+        """
+        When the backend lands past the requested frame, the worker seeks earlier and grabs forward.
+        """
+        seeks = self._fake_capture(mock_video, real_frames=1000, keyframe_interval=100, overshoot=33)
+
+        colors = video_processing.extract_colors(self.video_path, 520, 529, self.mock_color_extractor)
+
+        self.assertEqual(colors, list(range(520, 530)))
+        self.assertEqual(seeks, [520, 520 - video_processing.SEEK_FROM_START_FRAMES])
+
+    @patch("cv2.VideoCapture")
+    def test_no_seek_near_start(self, mock_video: MagicMock) -> None:
+        """
+        Near the start of the video, the worker does not seek (unreliable on some streams) and grabs instead.
+        """
+        seeks = self._fake_capture(mock_video, real_frames=1000, overshoot=33)
+
+        colors = video_processing.extract_colors(self.video_path, 5, 14, self.mock_color_extractor)
+
+        self.assertEqual(seeks, [])
+        self.assertEqual(colors, list(range(5, 15)))
+
+    @patch("cv2.VideoCapture")
+    def test_start_beyond_real_end_returns_empty(self, mock_video: MagicMock) -> None:
+        """
+        With an over-reported frame count, a worker whose range starts past the real end returns no colors.
+        """
+        self._fake_capture(mock_video, real_frames=300)
+
+        colors = video_processing.extract_colors(self.video_path, 320, 392, self.mock_color_extractor, 10)
+
+        self.assertEqual(colors, [])
+        mock_video.return_value.release.assert_called_once()
+
+    @patch("cv2.VideoCapture")
+    def test_range_crossing_real_end_stops_at_end(self, mock_video: MagicMock) -> None:
+        """
+        With an over-reported frame count, a worker whose range crosses the real end keeps the frames before it.
+        """
+        self._fake_capture(mock_video, real_frames=300)
+
+        colors = video_processing.extract_colors(self.video_path, 290, 392, self.mock_color_extractor)
+
+        self.assertEqual(colors, list(range(290, 300)))
+
 
 if __name__ == "__main__":
     unittest.main()

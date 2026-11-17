@@ -1,3 +1,4 @@
+import logging
 from multiprocessing import Pool
 from typing import Callable, List, Optional, Sequence, Tuple
 
@@ -18,6 +19,11 @@ CROP_BRIGHTNESS_PERCENTILE = 98
 CROP_MIN_RATIO = 0.3
 
 Rect = Tuple[int, int, int, int]
+
+# Below this frame index, workers reach their start frame by grabbing from the beginning instead of seeking:
+# FFmpeg seeks are unreliable near the start of some streams (e.g. MPEG-TS lands on the same frame for every
+# target up to ~1.3 s, and even a seek to frame 0 skips frames), and decoding a few hundred frames is cheap.
+SEEK_FROM_START_FRAMES = 250
 
 
 def load_video(video_path: str) -> tuple:
@@ -212,7 +218,10 @@ def extract_colors(
     :return: List of dominant colors from the sampled frames.
     """
     video = cv2.VideoCapture(video_path)
-    video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    if not _seek_exact(video, start_frame):
+        # The frame count is only an estimate for some containers: this range starts past the real end
+        video.release()
+        return []
 
     total_frames = end_frame - start_frame + 1
     if not target_frames or target_frames > total_frames:
@@ -237,3 +246,34 @@ def extract_colors(
     video.release()
 
     return colors
+
+
+def _seek_exact(video: cv2.VideoCapture, frame_index: int) -> bool:
+    """
+    Position a freshly opened capture so that the next read() returns frame_index.
+
+    Seeking can land on a nearby keyframe instead of the requested frame, so the position reported by the backend
+    is checked and the remaining frames are grabbed (decoded without conversion) up to frame_index.
+
+    :param cv2.VideoCapture video: A capture that has not read any frame yet.
+    :param int frame_index: The index of the frame the next read() must return.
+    :return: False if the video ends before frame_index (over-reported frame count), True otherwise.
+    """
+    position = 0
+    if frame_index >= SEEK_FROM_START_FRAMES:
+        # Seek to the target, then back off once if the backend overshot it
+        for seek_to in (frame_index, frame_index - SEEK_FROM_START_FRAMES):
+            video.set(cv2.CAP_PROP_POS_FRAMES, seek_to)
+            position = int(video.get(cv2.CAP_PROP_POS_FRAMES))
+            if position <= frame_index:
+                break
+        else:
+            logging.warning(
+                "Seek overshot frame %d (landed on %d), colors may be slightly shifted.", frame_index, position
+            )
+            return True
+
+    for _ in range(frame_index - position):
+        if not video.grab():
+            return False
+    return True

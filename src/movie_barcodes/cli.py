@@ -21,6 +21,22 @@ MAX_PROCESSES = cpu_count() or 1
 MIN_FRAME_COUNT = 2
 
 
+def get_target_frames(args: argparse.Namespace, frame_count: int, frame_width: int) -> int:
+    """
+    Number of frames to sample from the video.
+
+    For horizontal barcodes it is also the output width in pixels; for circular barcodes it is the number of rings.
+
+    :param args: argparse.Namespace object containing the command-line arguments
+    :param frame_count: The number of frames in the video
+    :param frame_width: The width of the video frames in pixels
+    :return: The number of frames to sample: --width if provided, else min(video width, frame count)
+    """
+    if args.width is not None:
+        return args.width
+    return max(1, min(frame_width, frame_count))
+
+
 def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
     """
     Generate and save the barcode image based on the specified method.
@@ -35,6 +51,11 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     # Get Video Properties
     video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
     _, _, video_duration, video_size = get_video_properties(video, args)
+    video.release()
+
+    # Number of frames to sample: one per output column (horizontal) or ring (circular).
+    # Defaults to the video width, capped by the number of frames.
+    target_frames = get_target_frames(args, frame_count, frame_width)
 
     # If the user specifies the 'workers' argument
     if args.workers is not None:
@@ -45,7 +66,7 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
                 0,
                 frame_count - 1,
                 dominant_color_function,
-                args.width,
+                target_frames,
             )
         else:
             # Perform parallel processing with the user-specified number of workers
@@ -54,7 +75,7 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
                 frame_count,
                 dominant_color_function,
                 args.workers,
-                args.width,
+                target_frames,
             )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
@@ -63,7 +84,7 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
             frame_count,
             dominant_color_function,
             MAX_PROCESSES,
-            args.width,
+            target_frames,
         )
 
     # Generate the appropriate type of barcode
@@ -72,7 +93,7 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     else:
         # Use the specified height if provided, otherwise use the video frame height
         barcode_height = args.height if args.height is not None else frame_height
-        barcode = generate_barcode(colors, barcode_height, frame_count, args.width)
+        barcode = generate_barcode(colors, barcode_height, frame_count, target_frames)
 
     base_name = path.basename(args.input_video_path)
     file_name_without_extension = path.splitext(base_name)[0]
@@ -88,8 +109,6 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     logging.info("Video Duration: %s", format_time(video_duration))
     logging.info("Video Size: %.2f MB", video_size / (1024 * 1024))
     logging.info("Processing Time: %s", format_time(processing_time))
-
-    video.release()
 
 
 def main() -> None:
@@ -143,7 +162,8 @@ def main() -> None:
         "--width",
         type=int,
         default=None,
-        help="Width of the output image. If not provided, the width will be the same as the video",
+        help="Number of frames sampled: the output image width for horizontal barcodes, the number of rings for "
+        "circular barcodes. If not provided, defaults to the video width (capped by the number of frames).",
     )
     parser.add_argument(
         "--height",
@@ -170,8 +190,13 @@ def main() -> None:
     # Parse arguments
     args = parser.parse_args()
 
+    # Check the input file exists before trying to open it, to get a clear error message
+    if not path.exists(args.input_video_path):
+        raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
+
     # Validate and process video file
-    _, frame_count, _, _ = load_video(args.input_video_path)
+    video, frame_count, _, _ = load_video(args.input_video_path)
+    video.release()
     validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
 
     # Choose the method to generate barcode

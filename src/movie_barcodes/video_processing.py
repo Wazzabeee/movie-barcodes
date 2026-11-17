@@ -2,7 +2,6 @@ from multiprocessing import Pool
 from typing import Callable, List, Optional
 
 import cv2
-import numpy as np
 from tqdm import tqdm
 
 
@@ -117,48 +116,26 @@ def extract_colors(
     video = cv2.VideoCapture(video_path)
     video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-    # Calculate frame_skip based on target_frames
     total_frames = end_frame - start_frame + 1
-    if target_frames:
-        frame_skip = total_frames // target_frames
-    else:
-        frame_skip = 1
+    if not target_frames or target_frames > total_frames:
+        target_frames = total_frames
 
     colors = []
+    position = 0  # Offset (relative to start_frame) of the next frame read() will return
 
-    for _ in tqdm(range(target_frames or total_frames), desc="Processing frames"):
-        ret, frame = video.read()  # Read the first or next frame
+    for i in tqdm(range(target_frames), desc="Processing frames"):
+        # Spread samples evenly over the whole range, so the end of the range is sampled too
+        # (an integer step total_frames // target_frames would leave up to ~half the range unsampled)
+        target_offset = i * total_frames // target_frames
+        while position < target_offset:
+            video.grab()  # Skip frames without decoding them
+            position += 1
+        ret, frame = video.read()
+        position += 1
         if not ret:
             break
-        dominant_color = color_extractor(frame)
-        colors.append(dominant_color)
-        for _ in range(frame_skip - 1):
-            video.grab()  # Skip frames
+        colors.append(color_extractor(frame))
 
     video.release()
 
     return colors
-
-
-def crop_black_borders(frame: np.ndarray, threshold: int = 30) -> np.ndarray:
-    """
-    Crop out black borders from a frame.
-
-    :param np.ndarray frame: Input frame.
-    :param int threshold: Threshold below which a pixel is considered 'black'.
-    :return np.ndarray: Cropped frame.
-    """
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return frame
-
-    cnt = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(cnt)
-
-    cropped_frame = frame[y : y + h, x : x + w]
-
-    return cropped_frame

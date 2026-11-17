@@ -3,7 +3,7 @@ The Lodger: A Story of the London Fog (1927) - Alfred Hitchcock - [Public Domain
 
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodger_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/thelodger_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/thelodger_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/thelodger_smoothed_horizontal.png)
 
 ![PyPI - Version](https://img.shields.io/pypi/v/movie-barcodes)
 ![PyPI - License](https://img.shields.io/pypi/l/movie-barcodes)
@@ -53,7 +53,7 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 
 - `-w`, `--workers`: Number of parallel workers for processing. By default, the script will use all available CPU cores. Setting this to 1 will use sequential processing. (Optional, type: int)
 
-- `--width`: For horizontal barcodes, sets both (1) the number of sampled frames and (2) the output image width in pixels. If not specified, defaults to the input video width. For circular barcodes, this flag is ignored (see notes). (Optional, type: int)
+- `--width`: The number of sampled frames. For horizontal barcodes it is also the output image width in pixels; for circular barcodes it is the number of rings. If not specified, defaults to the input video width (capped by the number of frames). Must not exceed the number of frames. (Optional, type: int)
 
 - `--height`: The output image's height in pixels. If not specified, the height will be the same as the input video. (Optional, type: int)
 
@@ -62,11 +62,12 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 - `-a`, `--all_methods`: If set, all extraction methods will be run. This overrides `--method` and produces one image per method. Default is False. (Optional, type: bool)
 
 Notes:
-- Circular barcode sizing: circular barcode diameter uses the input video width by default. `--width`/`--height` do not apply to circular barcodes.
+- Circular barcode sizing: the circular barcode diameter is the input video width. `--height` does not apply to circular barcodes.
 - Destination paths:
-  - If a relative path is provided, it is resolved relative to the project root.
-  - If only a filename (basename) is provided, it is saved in the project root.
+  - Without `-d`, the image is saved in a `barcodes/` folder in the current working directory.
+  - A relative `-d` path is resolved relative to the current working directory.
   - Parent directories are created automatically when saving the image.
+- The `hsv` method falls back to the frame's mean color when a frame has almost no colorful pixels (black, white or gray frames).
 
 # Examples
 ## Sequential Processing
@@ -86,18 +87,17 @@ $ git clone https://github.com/Wazzabeee/movie-barcodes
 # Go into the repository
 $ cd movie-barcodes
 
-# (Recommended) Use uv for environment and tools
-$ curl -LsSf https://astral.sh/uv/install.sh | sh   # or see uv docs for your OS
+# Install uv (see uv docs for other OSes)
+$ curl -LsSf https://astral.sh/uv/install.sh | sh   # or: brew install uv
 
-# Create a virtual environment and install dependencies
-$ uv venv
-$ uv pip install -r requirements.txt
+# Create .venv with the pinned Python (.python-version) and the exact locked versions (uv.lock),
+# including dev tools (pytest, pre-commit) and the package itself in editable mode
+$ uv sync
 
 # Install pre-commit hooks
-$ uvx pre-commit install
+$ uv run pre-commit install
 
 # Run tests
-$ uv pip install pytest pytest-cov
 $ uv run pytest tests/
 
 # Run package locally
@@ -106,13 +106,13 @@ $ uv run python -m movie_barcodes -i "path_to_video.mp4"
 
 # Todo
 
-- [ ] Optimize K-means to speed up the process
+- [x] Optimize K-means to speed up the process
 - [ ] Add a small GUI with all options available
-- [ ] Add option to modify the barcode's height (current is frame's height)
-- [ ] Ensure the software can handle various video formats beyond MP4
+- [x] Add option to modify the barcode's height (`--height`)
+- [x] Ensure the software can handle various video formats beyond MP4 (`.webm`, `.mkv`)
 - [ ] Allow the software to process multiple videos at once
 - [ ] Develop POC on Hugging Face Space
-- [ ] Remove the logs creation when using package
+- [x] Remove the logs creation when using package (logs go to stdout)
 
 # More Examples
 ## Barbie (2023) - Greta Gerwig
@@ -122,7 +122,7 @@ movie-barcodes -i "barbie.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/barbie_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/barbie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/barbie_smoothed_horizontal.png)
 ## Le Fabuleux Destin d'Amélie Poulain (2001) - Jean-Pierre Jeunet
 ```python
 movie-barcodes -i "amelie.mp4" -t "circular" -m "smoothed"
@@ -130,7 +130,7 @@ movie-barcodes -i "amelie.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/amelie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/amelie_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/amelie_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/amelie_smoothed_horizontal.png)
 ## Your Name / Kimi no Na wa / 君の名は (2016) - Makoto Shinkai
 ```python
 movie-barcodes -i "Your Name.mp4" -t "circular" -m "smoothed"
@@ -138,7 +138,7 @@ movie-barcodes -i "Your Name.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/yourname_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/yourname_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/yourname_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/yourname_smoothed_horizontal.png)
 ## Drive (2011) - Nicolas Winding Refn
 ```python
 movie-barcodes -i "Drive.mp4" -t "circular" -m "smoothed"
@@ -146,7 +146,7 @@ movie-barcodes -i "Drive.mp4" --width 1920 --height 1080 -t "horizontal"
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/drive_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/drive_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/drive_smoothed_horizontal.png)
 ## The Royal Tenenbaums (2001) - Wes Anderson
 ```python
 movie-barcodes -i "royal_tenenbaums.mp4" -t "circular" -m "smoothed"
@@ -154,4 +154,4 @@ movie-barcodes -i "royal_tenenbaums.mp4" --width 1920 --height 1080 -t "horizont
 ```
 Circular Barcode           |  Horizontal Barcode
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royal_tenenbaum_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie_color_barcode/main/examples/royaltenenbaums_smoothed_horizontal.png)
+![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/royal_tenenbaum_smoothed_circular.png)  |  ![](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/royaltenenbaums_smoothed_horizontal.png)

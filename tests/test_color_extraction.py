@@ -124,6 +124,71 @@ class TestColorExtraction(unittest.TestCase):
         frame = np.full((50, 50, 3), (1, 2, 3), dtype=np.uint8)
         np.testing.assert_allclose(color_extraction.get_dominant_color_kmeans(frame), [1, 2, 3], atol=1e-6)
 
+    def test_get_dominant_color_bgr_output_type(self) -> None:
+        """
+        The bgr method returns 3 uint8 values in BGR order.
+        """
+        dominant_color = color_extraction.get_dominant_color_bgr(self.frame)
+        self.assertIsInstance(dominant_color, np.ndarray)
+        self.assertEqual(dominant_color.shape, (3,))
+        self.assertEqual(dominant_color.dtype, np.uint8)
+
+    def test_get_dominant_color_bgr_uniform_frame(self) -> None:
+        """
+        A single-color frame returns exactly that color.
+        """
+        frame = np.full((50, 50, 3), (12, 130, 240), dtype=np.uint8)
+        np.testing.assert_array_equal(color_extraction.get_dominant_color_bgr(frame), [12, 130, 240])
+
+    def test_get_dominant_color_bgr_does_not_invent_colors(self) -> None:
+        """
+        A per-channel argmax would combine peaks from different pixels: with 40% blue, 30% green and 30% red,
+        each channel is 0 for most pixels and the old method returned black, which is not in the frame.
+        """
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        frame[:4] = (255, 0, 0)
+        frame[4:7] = (0, 255, 0)
+        frame[7:] = (0, 0, 255)
+        np.testing.assert_array_equal(color_extraction.get_dominant_color_bgr(frame), [255, 0, 0])
+
+    def test_get_dominant_color_bgr_majority_wins(self) -> None:
+        """
+        The majority color wins over several smaller groups of other colors.
+        """
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        frame[:, :34] = (30, 90, 160)
+        minorities = [(200, 10, 10), (10, 200, 10), (10, 10, 200), (128, 128, 128), (250, 250, 250), (0, 0, 0)]
+        for i, color in enumerate(minorities):
+            frame[:, 34 + i * 11 : 34 + (i + 1) * 11] = color
+        np.testing.assert_array_equal(color_extraction.get_dominant_color_bgr(frame), [30, 90, 160])
+
+    def test_get_dominant_color_bgr_returns_mean_of_bin(self) -> None:
+        """
+        The result is the mean of the pixels in the winning bin, not the center of the bin.
+        """
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        frame[:5] = (97, 97, 97)
+        frame[5:] = (99, 99, 99)
+        np.testing.assert_array_equal(color_extraction.get_dominant_color_bgr(frame), [98, 98, 98])
+
+    def test_get_dominant_color_bgr_large_frame_keeps_real_colors(self) -> None:
+        """
+        Subsampling a full HD frame must not blend fine patterns: 1px blue/red stripes give blue or red, not purple.
+        """
+        frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        frame[:, 0::2] = (255, 0, 0)
+        frame[:, 1::2] = (0, 0, 255)
+        self.assertIn(color_extraction.get_dominant_color_bgr(frame).tolist(), [[255, 0, 0], [0, 0, 255]])
+
+    def test_get_dominant_color_bgr_large_frame_majority(self) -> None:
+        """
+        The majority color of a full HD frame is found after subsampling.
+        """
+        frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        frame[:, :1400] = (10, 200, 30)
+        frame[:, 1400:] = (250, 250, 250)
+        np.testing.assert_array_equal(color_extraction.get_dominant_color_bgr(frame), [10, 200, 30])
+
 
 if __name__ == "__main__":
     unittest.main()

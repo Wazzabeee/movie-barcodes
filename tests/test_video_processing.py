@@ -1,7 +1,36 @@
+import queue
 import unittest
+from multiprocessing.pool import ThreadPool
 from unittest.mock import patch, MagicMock
+
 import cv2
+from tqdm import tqdm
+
 from movie_barcodes import video_processing
+from movie_barcodes.color_extraction import get_dominant_color_mean
+
+SAMPLE_VIDEO = "tests/sample.mp4"  # 93 frames
+
+
+def failing_color_extractor(frame):
+    """
+    Color extractor that always raises (module-level so it can be pickled to Pool workers).
+    """
+    raise RuntimeError("boom")
+
+
+class RecordingTqdm(tqdm):
+    """
+    tqdm that records the increments it receives.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.increments = []
+        super().__init__(*args, **kwargs)
+
+    def update(self, n=1):
+        self.increments.append(n)
+        return super().update(n)
 
 
 class TestVideoProcessing(unittest.TestCase):
@@ -352,6 +381,111 @@ class TestVideoProcessing(unittest.TestCase):
         colors = video_processing.extract_colors(self.video_path, 290, 392, self.mock_color_extractor)
 
         self.assertEqual(colors, list(range(290, 300)))
+
+
+class TestExtractColorsProgress(unittest.TestCase):
+    """
+    extract_colors can hide its bar and report progress on a queue.
+    """
+
+    video_path = "dummy_video.mp4"
+
+    @staticmethod
+    def mock_color_extractor(frame):
+        return frame
+
+    @patch("cv2.VideoCapture")
+    def test_extract_colors_progress_queue_without_bar(self, mock_video: MagicMock) -> None:
+        """
+        With show_progress=False the bar is disabled and each processed frame is reported on the queue.
+        """
+        mock_video.return_value.read.return_value = (True, "frame_data")
+        progress_queue = queue.Queue()
+
+        with patch("movie_barcodes.video_processing.tqdm", wraps=tqdm) as mock_tqdm:
+            colors = video_processing.extract_colors(
+                self.video_path, 0, 49, self.mock_color_extractor, 5, show_progress=False, progress_queue=progress_queue
+            )
+
+        self.assertEqual(len(colors), 5)
+        self.assertTrue(mock_tqdm.call_args.kwargs["disable"])
+        self.assertEqual(progress_queue.qsize(), 5)
+
+    @patch("cv2.VideoCapture")
+    def test_extract_colors_shows_bar_by_default(self, mock_video: MagicMock) -> None:
+        """
+        The sequential path keeps its own progress bar.
+        """
+        mock_video.return_value.read.return_value = (True, "frame_data")
+
+        with patch("movie_barcodes.video_processing.tqdm", wraps=tqdm) as mock_tqdm:
+            video_processing.extract_colors(self.video_path, 0, 49, self.mock_color_extractor, 5)
+
+        mock_tqdm.assert_called_once()
+        self.assertFalse(mock_tqdm.call_args.kwargs["disable"])
+
+
+class TestParallelExtractColorsProgress(unittest.TestCase):
+    """
+    parallel_extract_colors draws one global progress bar instead of one bar per worker.
+    """
+
+    def run_parallel(self, frame_count: int, target_frames: int, color_extractor=get_dominant_color_mean):
+        bars = []
+
+        def make_bar(*args, **kwargs):
+            bar = RecordingTqdm(*args, **kwargs)
+            bars.append(bar)
+            return bar
+
+        with patch("movie_barcodes.video_processing.tqdm", side_effect=make_bar) as mock_tqdm:
+            colors = video_processing.parallel_extract_colors(
+                SAMPLE_VIDEO, frame_count, color_extractor, 2, target_frames
+            )
+        return colors, mock_tqdm, bars
+
+    def test_single_bar_with_total_samples(self) -> None:
+        colors, mock_tqdm, bars = self.run_parallel(93, 20)
+
+        self.assertEqual(len(colors), 20)
+        mock_tqdm.assert_called_once()  # Workers run in other processes with their bar disabled
+        self.assertEqual(bars[0].total, 20)
+        self.assertEqual(bars[0].n, 20)
+        # Every frame was reported by the workers: the final top-up to 100% added nothing
+        self.assertEqual(bars[0].increments[-1], 0)
+
+    @patch("cv2.VideoCapture")
+    def test_workers_bars_disabled(self, mock_video: MagicMock) -> None:
+        """
+        Run the workers in threads so their tqdm calls are visible: only the parent's bar is shown.
+        """
+        mock_video.return_value.read.return_value = (True, "frame_data")
+
+        with (
+            patch("movie_barcodes.video_processing.Pool", ThreadPool),
+            patch("movie_barcodes.video_processing.tqdm", wraps=tqdm) as mock_tqdm,
+        ):
+            colors = video_processing.parallel_extract_colors("dummy_video.mp4", 100, lambda frame: frame, 3, 10)
+
+        self.assertEqual(len(colors), 10)
+        shown = [c for c in mock_tqdm.call_args_list if not c.kwargs.get("disable")]
+        hidden = [c for c in mock_tqdm.call_args_list if c.kwargs.get("disable")]
+        self.assertEqual(len(shown), 1)
+        self.assertEqual(shown[0].kwargs["total"], 10)
+        self.assertEqual(len(hidden), 3)
+
+    def test_bar_completes_when_workers_return_fewer_frames(self) -> None:
+        # Claim 200 frames: the second worker's range (100-199) is past the end of the 93-frame video
+        colors, _, bars = self.run_parallel(200, 200)
+
+        self.assertEqual(len(colors), 93)
+        self.assertEqual(bars[0].total, 200)
+        self.assertEqual(bars[0].n, 200)
+        self.assertEqual(bars[0].increments[-1], 200 - 93)  # Top-up for the frames past the end of the video
+
+    def test_worker_exception_is_raised_without_hanging(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.run_parallel(93, 20, failing_color_extractor)
 
 
 class FakeCapture:

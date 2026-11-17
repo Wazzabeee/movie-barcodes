@@ -1,6 +1,7 @@
 import logging
-from multiprocessing import Pool
-from typing import Callable, List, Optional, Sequence, Tuple
+import queue
+from multiprocessing import Manager, Pool
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -199,8 +200,25 @@ def parallel_extract_colors(
             )
         )
 
-    with Pool(active_workers) as pool:
-        results = pool.starmap(extract_colors, task_args)
+    # Workers don't draw their own bar (N bars on one terminal garble the output): they report each
+    # processed frame to a shared queue, and the parent process draws a single global bar.
+    total_samples = sum(min(args[4], args[2] - args[1] + 1) for args in task_args)
+    with Manager() as manager, Pool(active_workers) as pool:
+        progress_queue = manager.Queue()
+        task_args = [args + (False, progress_queue) for args in task_args]
+        async_result = pool.starmap_async(extract_colors, task_args)
+        with tqdm(total=total_samples, desc="Processing frames") as progress_bar:
+            # Poll ready() rather than blocking on the queue, so a worker that raises can't hang us
+            while not async_result.ready():
+                try:
+                    progress_bar.update(progress_queue.get(timeout=0.1))
+                except queue.Empty:
+                    pass
+            while not progress_queue.empty():
+                progress_bar.update(progress_queue.get())
+            results = async_result.get()  # Re-raises a worker's exception
+            # Workers may return fewer frames than requested (end of video): still end at 100%
+            progress_bar.update(total_samples - progress_bar.n)
 
     # Concatenate results from all workers
     final_colors = [color for colors in results for color in colors]
@@ -244,6 +262,8 @@ def extract_colors(
     end_frame: int,
     color_extractor: Callable,
     target_frames: Optional[int] = None,
+    show_progress: bool = True,
+    progress_queue: Optional[Any] = None,
 ) -> List:
     """
     Extracts dominant colors from frames in a video file.
@@ -253,6 +273,9 @@ def extract_colors(
     :param int end_frame: The index of the last frame to process.
     :param Callable color_extractor: A function to extract the dominant color from a frame.
     :param Optional[int] target_frames: The total number of frames to sample.
+    :param bool show_progress: Whether to display a progress bar for this call.
+    :param Optional[Any] progress_queue: If given, put 1 on this queue for each processed frame
+        (used by parallel_extract_colors to drive a single global progress bar).
     :return: List of dominant colors from the sampled frames.
     """
     video = cv2.VideoCapture(video_path)
@@ -268,7 +291,7 @@ def extract_colors(
     colors = []
     position = 0  # Offset (relative to start_frame) of the next frame read() will return
 
-    for i in tqdm(range(target_frames), desc="Processing frames"):
+    for i in tqdm(range(target_frames), desc="Processing frames", disable=not show_progress):
         # Spread samples evenly over the whole range, so the end of the range is sampled too
         # (an integer step total_frames // target_frames would leave up to ~half the range unsampled)
         target_offset = i * total_frames // target_frames
@@ -278,6 +301,8 @@ def extract_colors(
         if not ret:
             break
         colors.append(color_extractor(frame))
+        if progress_queue is not None:
+            progress_queue.put(1)
 
     video.release()
 

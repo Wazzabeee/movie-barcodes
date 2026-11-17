@@ -13,7 +13,12 @@ from .color_extraction import (
     get_dominant_color_hsv,
     get_dominant_color_bgr,
     get_smoothed_frame,
+    get_dominant_color_mean_linear,
+    get_smoothed_frame_linear,
 )
+
+# Methods that average colors, and can therefore average them in linear light (--linear)
+LINEAR_METHODS = ("avg", "smoothed")
 
 
 def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int, MIN_FRAME_COUNT: int) -> None:
@@ -76,16 +81,21 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
         raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
 
 
-def get_dominant_color_function(method: str) -> Callable:
+def get_dominant_color_function(method: str, linear: bool = False) -> Callable:
     """
     Returns the appropriate function to get the dominant color based on the specified method.
 
-    :param str method: The method to use for color extraction ('avg', 'kmeans', 'hsv', or 'bgr').
+    :param str method: The method to use for color extraction ('avg', 'kmeans', 'hsv', 'bgr' or 'smoothed').
+    :param bool linear: Average colors in linear light. Only applies to the methods in LINEAR_METHODS ('avg' and
+        'smoothed'); the other methods are unaffected.
     :return: Function to get the dominant color.
     :raises ValueError: If the method is invalid.
     """
+    if linear and method == "avg":
+        return get_dominant_color_mean_linear
+    if linear and method == "smoothed":
+        return get_smoothed_frame_linear
     if method == "avg":
-        # return get_dominant_color_avg
         return get_dominant_color_mean
     if method == "kmeans":
         return get_dominant_color_kmeans

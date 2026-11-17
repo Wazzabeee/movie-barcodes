@@ -45,6 +45,66 @@ def get_dominant_color_mean(frame: np.ndarray) -> np.ndarray:
     return np.array(cv2.mean(frame)[:3])
 
 
+def srgb_to_linear(values: np.ndarray) -> np.ndarray:
+    """
+    Decodes sRGB values in [0, 1] to linear light with the exact sRGB transfer function.
+
+    :param np.ndarray values: sRGB values in [0, 1].
+    :return: np.ndarray: Linear light values in [0, 1] (float64).
+    """
+    values = np.asarray(values, dtype=np.float64)
+    return np.where(values <= 0.04045, values / 12.92, ((values + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_srgb(values: np.ndarray) -> np.ndarray:
+    """
+    Encodes linear light values in [0, 1] to sRGB with the exact sRGB transfer function.
+
+    :param np.ndarray values: Linear light values in [0, 1].
+    :return: np.ndarray: sRGB values in [0, 1] (float64).
+    """
+    values = np.clip(np.asarray(values, dtype=np.float64), 0.0, 1.0)
+    return np.where(values <= 0.0031308, values * 12.92, 1.055 * values ** (1 / 2.4) - 0.055)
+
+
+# Linear light value of every 8-bit sRGB code value
+SRGB_TO_LINEAR_LUT = srgb_to_linear(np.arange(256) / 255.0)
+
+
+def get_dominant_color_mean_linear(frame: np.ndarray) -> np.ndarray:
+    """
+    Gets the mean color of a frame averaged in linear light, re-encoded to sRGB.
+
+    Averaging gamma encoded values (get_dominant_color_mean) makes high-contrast frames too dark: a frame half
+    black and half white averages to 128 instead of 188, the sRGB value of the perceived mix of the two.
+
+    The mean of every pixel is computed exactly without building a float image: per channel, a 256-bin
+    histogram of the 8-bit values is weighted by the linear value of each bin.
+
+    :param np.ndarray frame: The frame as a NumPy array (BGR, uint8).
+    :return: Mean color as a NumPy array (BGR, uint8).
+    """
+    pixel_count = frame.shape[0] * frame.shape[1]
+    linear_mean = np.array(
+        [cv2.calcHist([frame], [channel], None, [256], [0, 256]).ravel() @ SRGB_TO_LINEAR_LUT for channel in range(3)]
+    )
+    return np.round(linear_to_srgb(linear_mean / pixel_count) * 255).astype(np.uint8)
+
+
+def get_smoothed_frame_linear(frame: np.ndarray) -> np.ndarray:
+    """
+    Linear light version of get_smoothed_frame: a column of the original height filled with the mean color of the
+    frame averaged in linear light (see get_dominant_color_mean_linear).
+
+    Area-resizing the whole frame to a single pixel is exactly the mean of all its pixels, so the column is filled
+    with that mean directly.
+
+    :param np.ndarray frame: frame to be smoothed (BGR, uint8).
+    :return: np.ndarray: Smoothed frame (original height x 1 x 3, uint8).
+    """
+    return np.tile(get_dominant_color_mean_linear(frame), (frame.shape[0], 1, 1))
+
+
 def get_dominant_color_kmeans(frame: np.ndarray, k: int = 3) -> np.ndarray:
     """
     Gets the dominant color of a frame using KMeans clustering.

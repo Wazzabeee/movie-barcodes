@@ -12,6 +12,7 @@ from .utility import (
     save_barcode_image,
     get_dominant_color_function,
     format_time,
+    LINEAR_METHODS,
     get_video_properties,
     validate_args,
 )
@@ -208,6 +209,13 @@ def main() -> None:
         help="If provided, detect black borders (letterbox / pillarbox) once and ignore them when extracting "
         "colors. Default is False.",
     )
+    parser.add_argument(
+        "--linear",
+        action="store_true",
+        help="Average colors in linear light (perceptually correct, brighter on high-contrast scenes). Applies to "
+        "the avg and smoothed methods only; their output files get a '_linear' suffix after the method name. "
+        "Default is False.",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -234,7 +242,14 @@ def main() -> None:
 
     # Choose the method to generate barcode
     methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"] if args.all_methods else [args.method]
-    generate_and_save_barcodes(args, {method: get_dominant_color_function(method) for method in methods}, crop_rect)
+    # With --linear, avg and smoothed barcodes get a distinct name so they don't overwrite the gamma averaged ones
+    color_functions = {
+        f"{method}_linear" if args.linear and method in LINEAR_METHODS else method: get_dominant_color_function(
+            method, args.linear
+        )
+        for method in methods
+    }
+    generate_and_save_barcodes(args, color_functions, crop_rect)
 
 
 if __name__ == "__main__":

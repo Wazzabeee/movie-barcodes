@@ -12,6 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Do the tests pass?
+    # A deadlock must fail fast instead of running until GitHub's 6-hour limit
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python

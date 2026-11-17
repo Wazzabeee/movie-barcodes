@@ -1,6 +1,6 @@
 import logging
 import queue
-from multiprocessing import Manager, Pool
+import multiprocessing
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import cv2
@@ -36,6 +36,12 @@ SEEK_FROM_START_FRAMES = 250
 # ~30 frames for MPEG-4 Part 2 (GOP 12), ~60 for H.264 with GOP 48, ~90 for H.264 with scene cuts
 # every 2-5 s, and ~150 for H.264/HEVC with GOP 250 and no scene cuts (the worst case).
 SEEK_THRESHOLD = 100
+
+
+# Worker processes are started with "spawn" on every platform. With "fork" (the Linux default before
+# Python 3.14), workers inherit the parent's thread pools in an inconsistent state: if the parent already
+# ran scikit-learn's K-means (OpenMP) or OpenCV's parallel code, K-means in the workers can deadlock forever.
+MP_CONTEXT = multiprocessing.get_context("spawn")
 
 
 def load_video(video_path: str) -> tuple:
@@ -208,7 +214,7 @@ def parallel_extract_colors(
     # Workers don't draw their own bar (N bars on one terminal garble the output): they report each
     # processed frame to a shared queue, and the parent process draws a single global bar.
     total_samples = sum(min(args[4], args[2] - args[1] + 1) for args in task_args)
-    with Manager() as manager, Pool(active_workers) as pool:
+    with MP_CONTEXT.Manager() as manager, MP_CONTEXT.Pool(active_workers) as pool:
         progress_queue = manager.Queue()
         task_args = [args + (False, progress_queue) for args in task_args]
         async_result = pool.starmap_async(extract_colors, task_args)

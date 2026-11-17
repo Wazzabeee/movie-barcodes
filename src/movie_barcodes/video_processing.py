@@ -1,8 +1,23 @@
 from multiprocessing import Pool
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Sequence, Tuple
 
 import cv2
+import numpy as np
 from tqdm import tqdm
+
+# Number of frames sampled over the movie to detect black borders
+CROP_DETECTION_SAMPLES = 24
+# Share of the movie skipped at the start and at the end when sampling (credits, fades)
+CROP_DETECTION_MARGIN = 0.05
+# Rows/columns whose brightness (high percentile of the brightest channel) stays at or below this value
+# in every sampled frame are considered black borders. Above the usual video black level (16) plus compression noise.
+CROP_BRIGHTNESS_THRESHOLD = 24
+# Percentile used instead of the max, so isolated compression artifacts in the bars are ignored
+CROP_BRIGHTNESS_PERCENTILE = 98
+# A detected content area smaller than this share of the frame (on either axis) is considered unreliable
+CROP_MIN_RATIO = 0.3
+
+Rect = Tuple[int, int, int, int]
 
 
 def load_video(video_path: str) -> tuple:
@@ -28,6 +43,89 @@ def load_video(video_path: str) -> tuple:
         raise ValueError(f"The video file {video_path} has invalid dimensions.")
 
     return video, frame_count, frame_width, frame_height
+
+
+def find_content_area(frames: Sequence[np.ndarray]) -> Optional[Rect]:
+    """
+    Find the area of the frames that is not covered by black borders (letterbox or pillarbox).
+
+    A row (or column) belongs to the content if it is brighter than CROP_BRIGHTNESS_THRESHOLD in at least one
+    frame. Fully dark frames are ignored.
+
+    :param Sequence[np.ndarray] frames: BGR frames of the same size.
+    :return: Optional[Rect]: (x, y, w, h) of the content area, or None if it cannot be detected reliably.
+    """
+    row_profile = None
+    col_profile = None
+    for frame in frames:
+        brightness = frame.max(axis=2) if frame.ndim == 3 else frame
+        rows = np.percentile(brightness, CROP_BRIGHTNESS_PERCENTILE, axis=1)
+        cols = np.percentile(brightness, CROP_BRIGHTNESS_PERCENTILE, axis=0)
+        if rows.max() <= CROP_BRIGHTNESS_THRESHOLD:
+            continue  # Fully dark frame: no information about the borders
+        row_profile = rows if row_profile is None else np.maximum(row_profile, rows)
+        col_profile = cols if col_profile is None else np.maximum(col_profile, cols)
+
+    if row_profile is None or col_profile is None:
+        return None
+
+    content_rows = np.flatnonzero(row_profile > CROP_BRIGHTNESS_THRESHOLD)
+    content_cols = np.flatnonzero(col_profile > CROP_BRIGHTNESS_THRESHOLD)
+    if content_rows.size == 0 or content_cols.size == 0:
+        return None
+
+    y, x = int(content_rows[0]), int(content_cols[0])
+    h = int(content_rows[-1]) - y + 1
+    w = int(content_cols[-1]) - x + 1
+    if h < CROP_MIN_RATIO * row_profile.size or w < CROP_MIN_RATIO * col_profile.size:
+        return None
+
+    return x, y, w, h
+
+
+def detect_content_area(video_path: str, frame_count: int) -> Rect:
+    """
+    Detect the content area of a video once, by sampling frames spread over the movie.
+
+    :param str video_path: The path to the video file.
+    :param int frame_count: The total number of frames in the video.
+    :return: Rect: (x, y, w, h) of the content area; the full frame if no reliable border is detected.
+    """
+    video = cv2.VideoCapture(video_path)
+    frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    first = int(frame_count * CROP_DETECTION_MARGIN)
+    last = max(first, int(frame_count * (1 - CROP_DETECTION_MARGIN)) - 1)
+    indices = np.unique(np.linspace(first, last, CROP_DETECTION_SAMPLES).astype(int))
+
+    frames = []
+    for index in indices:
+        video.set(cv2.CAP_PROP_POS_FRAMES, int(index))
+        ret, frame = video.read()
+        if ret:  # The frame count may be over-reported by the container
+            frames.append(frame)
+    video.release()
+
+    if frames:
+        frame_height, frame_width = frames[0].shape[:2]
+
+    return find_content_area(frames) or (0, 0, frame_width, frame_height)
+
+
+def crop_and_extract(frame: np.ndarray, color_extractor: Callable, crop_rect: Rect):
+    """
+    Crop a frame to the given area, then extract its color.
+
+    Module-level function so that functools.partial(crop_and_extract, ...) can be sent to worker processes.
+
+    :param np.ndarray frame: The frame as a NumPy array.
+    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :param Rect crop_rect: (x, y, w, h) of the area to keep.
+    :return: The output of color_extractor on the cropped frame.
+    """
+    x, y, w, h = crop_rect
+    return color_extractor(frame[y : y + h, x : x + w])
 
 
 def parallel_extract_colors(

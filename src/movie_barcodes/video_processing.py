@@ -1,7 +1,7 @@
 import logging
 import queue
 from multiprocessing import Manager, Pool
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
@@ -20,6 +20,9 @@ CROP_BRIGHTNESS_PERCENTILE = 98
 CROP_MIN_RATIO = 0.3
 
 Rect = Tuple[int, int, int, int]
+
+# A single color extractor, or several extractors keyed by method name to run on the same decoded frames
+ColorExtractors = Union[Callable, Dict[str, Callable]]
 
 # Below this frame index, workers reach their start frame by grabbing from the beginning instead of seeking:
 # FFmpeg seeks are unreliable near the start of some streams (e.g. MPEG-TS lands on the same frame for every
@@ -146,19 +149,21 @@ def crop_and_extract(frame: np.ndarray, color_extractor: Callable, crop_rect: Re
 def parallel_extract_colors(
     video_path: str,
     frame_count: int,
-    color_extractor: Callable,
+    color_extractor: ColorExtractors,
     workers: int,
     target_frames: Optional[int] = None,
-) -> list:
+) -> Union[List, Dict[str, List]]:
     """
     Extract dominant colors from frames in a video file using parallel processing.
 
     :param str video_path: The path to the video file.
     :param int frame_count: The total number of frames in the video.
-    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :param color_extractor: A function to extract the dominant color from a frame, or a dict
+        {method_name: function} to run several extractors on the same decoded frames.
     :param int workers: Number of parallel workers.
     :param Optional[int] target_frames: The total number of frames to sample.
-    :return: List of dominant colors for the frames in the video.
+    :return: List of dominant colors for the frames in the video, or {method_name: list of colors}
+        when a dict of extractors is given.
     """
     if target_frames is None:
         target_frames = frame_count
@@ -220,10 +225,10 @@ def parallel_extract_colors(
             # Workers may return fewer frames than requested (end of video): still end at 100%
             progress_bar.update(total_samples - progress_bar.n)
 
-    # Concatenate results from all workers
-    final_colors = [color for colors in results for color in colors]
-
-    return final_colors
+    # Concatenate results from all workers, in frame order
+    if isinstance(color_extractor, dict):
+        return {name: [color for colors in results for color in colors[name]] for name in color_extractor}
+    return [color for colors in results for color in colors]
 
 
 def _skip_to(video: cv2.VideoCapture, position: int, target: int) -> int:
@@ -260,35 +265,42 @@ def extract_colors(
     video_path: str,
     start_frame: int,
     end_frame: int,
-    color_extractor: Callable,
+    color_extractor: ColorExtractors,
     target_frames: Optional[int] = None,
     show_progress: bool = True,
     progress_queue: Optional[Any] = None,
-) -> List:
+) -> Union[List, Dict[str, List]]:
     """
     Extracts dominant colors from frames in a video file.
 
     :param str video_path: The video capture object.
     :param int start_frame: The index of the first frame to process.
     :param int end_frame: The index of the last frame to process.
-    :param Callable color_extractor: A function to extract the dominant color from a frame.
+    :param color_extractor: A function to extract the dominant color from a frame, or a dict
+        {method_name: function} to run several extractors on the same decoded frames.
     :param Optional[int] target_frames: The total number of frames to sample.
     :param bool show_progress: Whether to display a progress bar for this call.
     :param Optional[Any] progress_queue: If given, put 1 on this queue for each processed frame
         (used by parallel_extract_colors to drive a single global progress bar).
-    :return: List of dominant colors from the sampled frames.
+    :return: List of dominant colors from the sampled frames, or {method_name: list of colors}
+        when a dict of extractors is given.
     """
+    extractors = color_extractor if isinstance(color_extractor, dict) else {None: color_extractor}
+    colors: Dict = {name: [] for name in extractors}
+
+    def result() -> Union[List, Dict[str, List]]:
+        return colors if isinstance(color_extractor, dict) else colors[None]
+
     video = cv2.VideoCapture(video_path)
     if not _seek_exact(video, start_frame):
         # The frame count is only an estimate for some containers: this range starts past the real end
         video.release()
-        return []
+        return result()
 
     total_frames = end_frame - start_frame + 1
     if not target_frames or target_frames > total_frames:
         target_frames = total_frames
 
-    colors = []
     position = 0  # Offset (relative to start_frame) of the next frame read() will return
 
     for i in tqdm(range(target_frames), desc="Processing frames", disable=not show_progress):
@@ -300,13 +312,14 @@ def extract_colors(
         position += 1
         if not ret:
             break
-        colors.append(color_extractor(frame))
+        for name, extractor in extractors.items():
+            colors[name].append(extractor(frame))
         if progress_queue is not None:
             progress_queue.put(1)
 
     video.release()
 
-    return colors
+    return result()
 
 
 def _seek_exact(video: cv2.VideoCapture, frame_index: int) -> bool:

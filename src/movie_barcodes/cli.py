@@ -4,7 +4,7 @@ import logging
 import sys
 import time
 
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 from os import cpu_count, path
 
 from .barcode_generation import generate_circular_barcode, generate_barcode
@@ -59,13 +59,15 @@ def get_color_function(method: str, crop_rect: Optional[tuple] = None) -> Callab
     return functools.partial(crop_and_extract, color_extractor=color_function, crop_rect=crop_rect)
 
 
-def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function: Callable, method: str) -> None:
+def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[str, Callable]) -> None:
     """
-    Generate and save the barcode image based on the specified method.
+    Generate and save one barcode image per color extraction method.
+
+    The video is decoded once: every sampled frame goes through all the color extraction functions.
 
     :param args: argparse.Namespace object containing the command-line arguments
-    :param dominant_color_function: The function to extract the dominant color from a frame
-    :param method: The method used to extract the dominant color
+    :param color_functions: {method: function to extract the dominant color from a frame}, one barcode is saved
+        per method
     :return: None
     """
     start_time = time.time()
@@ -83,43 +85,45 @@ def generate_and_save_barcode(args: argparse.Namespace, dominant_color_function:
     if args.workers is not None:
         if args.workers == 1:
             # If the user explicitly sets 'workers' to 1, use sequential processing
-            colors = extract_colors(
+            colors_by_method = extract_colors(
                 args.input_video_path,
                 0,
                 frame_count - 1,
-                dominant_color_function,
+                color_functions,
                 target_frames,
             )
         else:
             # Perform parallel processing with the user-specified number of workers
-            colors = parallel_extract_colors(
+            colors_by_method = parallel_extract_colors(
                 args.input_video_path,
                 frame_count,
-                dominant_color_function,
+                color_functions,
                 args.workers,
                 target_frames,
             )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
-        colors = parallel_extract_colors(
+        colors_by_method = parallel_extract_colors(
             args.input_video_path,
             frame_count,
-            dominant_color_function,
+            color_functions,
             MAX_PROCESSES,
             target_frames,
         )
 
-    # Generate the appropriate type of barcode
-    if args.barcode_type == "circular":
-        barcode = generate_circular_barcode(colors, frame_width)
-    else:
-        # Use the specified height if provided, otherwise use the video frame height
-        barcode_height = args.height if args.height is not None else frame_height
-        barcode = generate_barcode(colors, barcode_height, frame_count, target_frames)
-
     base_name = path.basename(args.input_video_path)
     file_name_without_extension = path.splitext(base_name)[0]
-    save_barcode_image(barcode, file_name_without_extension, args, method)
+
+    for method, colors in colors_by_method.items():
+        # Generate the appropriate type of barcode
+        if args.barcode_type == "circular":
+            barcode = generate_circular_barcode(colors, frame_width)
+        else:
+            # Use the specified height if provided, otherwise use the video frame height
+            barcode_height = args.height if args.height is not None else frame_height
+            barcode = generate_barcode(colors, barcode_height, frame_count, target_frames)
+
+        save_barcode_image(barcode, file_name_without_extension, args, method)
 
     # Calculate processing time
     end_time = time.time()
@@ -239,12 +243,8 @@ def main() -> None:
             logging.info("Cropping borders: %dx%d -> %dx%d", frame_width, frame_height, crop_width, crop_height)
 
     # Choose the method to generate barcode
-    methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"]
-    if args.all_methods:
-        for method in methods:
-            generate_and_save_barcode(args, get_color_function(method, crop_rect), method)
-    else:
-        generate_and_save_barcode(args, get_color_function(args.method, crop_rect), args.method)
+    methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"] if args.all_methods else [args.method]
+    generate_and_save_barcodes(args, {method: get_color_function(method, crop_rect) for method in methods})
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ import cv2
 from tqdm import tqdm
 
 from movie_barcodes import video_processing
-from movie_barcodes.color_extraction import get_dominant_color_mean
+from movie_barcodes.color_extraction import get_dominant_color_bgr, get_dominant_color_mean
 
 SAMPLE_VIDEO = "tests/sample.mp4"  # 93 frames
 
@@ -606,6 +606,58 @@ class TestFrameSkipping(unittest.TestCase):
         colors = self.run_four_samples(capture, gap)
         self.assertEqual(colors, [self.start, self.start + gap])
         self.assertLessEqual(capture.grabs, 3 * gap)  # Grabbing stopped at the real end
+
+
+def _double(frame):
+    """
+    Module-level extractor (picklable) used by the multi-extractor tests.
+    """
+    return 2 * frame
+
+
+class TestMultipleExtractors(unittest.TestCase):
+    """
+    A dict {method: extractor} runs every extractor on the same decoded frames.
+    """
+
+    def test_extract_colors_with_dict_of_extractors(self) -> None:
+        capture = FakeCapture(frame_count=50)
+        extractors = {"identity": lambda frame: frame, "double": _double}
+        with patch("cv2.VideoCapture", return_value=capture):
+            colors = video_processing.extract_colors("dummy.mp4", 0, 49, extractors, 5)
+
+        self.assertEqual(list(colors), ["identity", "double"])
+        self.assertEqual(colors["identity"], [0, 10, 20, 30, 40])
+        self.assertEqual(colors["double"], [2 * frame for frame in colors["identity"]])
+        self.assertEqual(capture.reads, 5)  # Each sampled frame is decoded once for all extractors
+
+    def test_extract_colors_dict_reports_progress_per_frame(self) -> None:
+        progress_queue = queue.Queue()
+        with patch("cv2.VideoCapture", return_value=FakeCapture(frame_count=50)):
+            video_processing.extract_colors("dummy.mp4", 0, 49, {"a": _double, "b": _double}, 5, False, progress_queue)
+        self.assertEqual(progress_queue.qsize(), 5)  # Frames, not frames x methods
+
+    def test_parallel_extract_colors_with_dict_matches_single_extractors(self) -> None:
+        extractors = {"avg": get_dominant_color_mean, "bgr": get_dominant_color_bgr}
+        bars = []
+
+        def make_bar(*args, **kwargs):
+            bar = RecordingTqdm(*args, **kwargs)
+            bars.append(bar)
+            return bar
+
+        with patch("movie_barcodes.video_processing.tqdm", side_effect=make_bar):
+            colors = video_processing.parallel_extract_colors(SAMPLE_VIDEO, 93, extractors, 2, 20)
+
+        self.assertEqual(list(colors), ["avg", "bgr"])
+        self.assertEqual(bars[0].total, 20)
+        self.assertEqual(bars[0].n, 20)
+        self.assertEqual(bars[0].increments[-1], 0)  # Every frame was reported once, not once per method
+        for method, extractor in extractors.items():
+            expected = video_processing.parallel_extract_colors(SAMPLE_VIDEO, 93, extractor, 2, 20)
+            self.assertEqual(len(colors[method]), 20)
+            for actual, single in zip(colors[method], expected):
+                self.assertTrue((actual == single).all())
 
 
 if __name__ == "__main__":

@@ -156,7 +156,7 @@ def main() -> None:
         type=int,
         default=None,
         help="Number of workers for parallel processing. Default behavior uses all available CPU cores. Setting this "
-        "to 1 will use sequential processing.",
+        "to 1 will use sequential processing. Values above the number of CPU cores are capped to it (with a warning).",
     )
     parser.add_argument(
         "--width",

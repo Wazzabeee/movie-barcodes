@@ -20,14 +20,17 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
     """
     Validate command-line arguments for logical errors.
 
+    If ``args.workers`` exceeds ``MAX_PROCESSES``, a warning is logged and ``args.workers`` is capped to
+    ``MAX_PROCESSES`` in place (so the output file name reflects the number of workers actually used).
+
     :param argparse.Namespace args: The command-line arguments.
     :param int frame_count: The number of frames in the video.
-    :param int MAX_PROCESSES: The maximum number of processes to use.
+    :param int MAX_PROCESSES: The maximum number of processes to use (number of available CPU cores).
     :param int MIN_FRAME_COUNT: The minimum number of frames required in the video.
     :return: None
     :raises FileNotFoundError: If the input video file does not exist.
-    :raises ValueError: If the video file has an invalid extension, the destination path is not writable, the number of
-        workers is invalid, the width is invalid, the frame count is invalid, or the method is invalid.
+    :raises ValueError: If the video file has an invalid extension, the number of workers is lower than 1, the width
+        is invalid, or the frame count is too low.
     :raises PermissionError: If the destination path is not writable.
     """
     # Check if input video file exists
@@ -51,10 +54,13 @@ def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int
         if args.workers < 1:
             raise ValueError("The number of workers must be greater than or equal to 1.")
         if args.workers > MAX_PROCESSES:
-            raise ValueError(
-                f"The number of workers specified ({args.workers}) exceeds "
-                f"the number of available CPU cores ({MAX_PROCESSES})."
+            logging.warning(
+                "Requested %d workers but only %d CPU cores are available; using %d.",
+                args.workers,
+                MAX_PROCESSES,
+                MAX_PROCESSES,
             )
+            args.workers = MAX_PROCESSES
 
     if args.width is not None:
         if args.width <= 0:

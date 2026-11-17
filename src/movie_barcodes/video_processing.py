@@ -25,6 +25,14 @@ Rect = Tuple[int, int, int, int]
 # target up to ~1.3 s, and even a seek to frame 0 skips frames), and decoding a few hundred frames is cheap.
 SEEK_FROM_START_FRAMES = 250
 
+# Number of frames to skip above which seeking is used instead of grab()-ing each of them.
+# grab() still decodes each frame, so its cost grows with the gap, while a seek costs roughly
+# one decode from the previous keyframe to the target, whatever the gap. The crossover therefore
+# depends on the keyframe interval: measured on 720p files (FFmpeg backend), seeking wins above
+# ~30 frames for MPEG-4 Part 2 (GOP 12), ~60 for H.264 with GOP 48, ~90 for H.264 with scene cuts
+# every 2-5 s, and ~150 for H.264/HEVC with GOP 250 and no scene cuts (the worst case).
+SEEK_THRESHOLD = 100
+
 
 def load_video(video_path: str) -> tuple:
     """
@@ -200,6 +208,36 @@ def parallel_extract_colors(
     return final_colors
 
 
+def _skip_to(video: cv2.VideoCapture, position: int, target: int) -> int:
+    """
+    Advance the capture so that the next read() returns frame `target`.
+
+    Skips of up to SEEK_THRESHOLD frames use grab(); longer skips seek with
+    CAP_PROP_POS_FRAMES, then grab() the remaining frames if the backend landed before the target.
+    Targets below SEEK_FROM_START_FRAMES are always grabbed (seeks are unreliable near the start of
+    some streams), and a failed seek falls back to grabbing. A backend that overshoots the target
+    cannot be corrected cheaply: the next read() then returns the frame it landed on, and the
+    returned position reflects it so later samples stay in order. Grabbing stops if the video ends
+    early (over-reported frame count); the next read() then fails.
+
+    :param cv2.VideoCapture video: The video capture object.
+    :param int position: Absolute index of the frame the next read() would return.
+    :param int target: Absolute index of the frame to read next.
+    :return: Absolute index of the frame the next read() will return.
+    """
+    if (
+        target - position > SEEK_THRESHOLD
+        and target >= SEEK_FROM_START_FRAMES
+        and video.set(cv2.CAP_PROP_POS_FRAMES, target)
+    ):
+        position = int(video.get(cv2.CAP_PROP_POS_FRAMES))
+    while position < target:
+        if not video.grab():  # Skip frames without returning them
+            break
+        position += 1
+    return position
+
+
 def extract_colors(
     video_path: str,
     start_frame: int,
@@ -234,9 +272,7 @@ def extract_colors(
         # Spread samples evenly over the whole range, so the end of the range is sampled too
         # (an integer step total_frames // target_frames would leave up to ~half the range unsampled)
         target_offset = i * total_frames // target_frames
-        while position < target_offset:
-            video.grab()  # Skip frames without decoding them
-            position += 1
+        position = _skip_to(video, start_frame + position, start_frame + target_offset) - start_frame
         ret, frame = video.read()
         position += 1
         if not ret:

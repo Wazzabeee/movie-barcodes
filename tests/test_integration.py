@@ -1,4 +1,3 @@
-import argparse
 import unittest
 import os
 import glob
@@ -9,6 +8,7 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image
 
+from movie_barcodes import api
 from movie_barcodes import cli as main
 
 
@@ -79,10 +79,9 @@ class TestIntegration(unittest.TestCase):
         """
         Without --width, the number of samples (and horizontal width) is min(video width, frame count).
         """
-        args = argparse.Namespace(width=None)
-        self.assertEqual(main.get_target_frames(args, frame_count=100_000, frame_width=1920), 1920)
-        self.assertEqual(main.get_target_frames(args, frame_count=93, frame_width=2048), 93)
-        self.assertEqual(main.get_target_frames(argparse.Namespace(width=50), 93, 2048), 50)
+        self.assertEqual(api.get_target_frames(frame_count=100_000, frame_width=1920), 1920)
+        self.assertEqual(api.get_target_frames(frame_count=93, frame_width=2048), 93)
+        self.assertEqual(api.get_target_frames(93, 2048, width=50), 50)
 
     def test_missing_input_file_raises_file_not_found(self):
         with patch.object(sys, "argv", ["movie-barcodes", "-i", "does/not/exist.mp4"]):
@@ -112,7 +111,7 @@ class TestIntegration(unittest.TestCase):
             try:
                 with (
                     patch.object(sys, "argv", args),
-                    patch.object(main, "extract_colors", wraps=main.extract_colors) as extract_spy,
+                    patch.object(api, "extract_colors", wraps=api.extract_colors) as extract_spy,
                 ):
                     main.main()
                 saved = sorted(os.listdir("barcodes"))

@@ -1,5 +1,4 @@
 import unittest
-import argparse
 import os
 import shutil
 import tempfile
@@ -23,15 +22,9 @@ class TestUtility(unittest.TestCase):
         :return: None
         """
         super().setUp()
-        self.args = argparse.Namespace(
-            input_video_path="test_video.mp4",
-            destination_path="/test/output.png",
-            workers=4,
-            width=200,
-            all_methods=False,
-            method="avg",
-            height=None,
-        )
+        self.video_path = "test_video.mp4"
+        self.destination_path = "/test/output.png"
+        self.width = 200
         self.frame_count = 300
         self.MAX_PROCESSES = 8
         self.MIN_FRAME_COUNT = 100
@@ -44,65 +37,76 @@ class TestUtility(unittest.TestCase):
         self.mock_exists = patcher_exists.start()
         self.mock_access = patcher_access.start()
 
+    def _validate(self, **kwargs) -> None:
+        """
+        Call validate_inputs with the valid defaults of setUp, overridden by kwargs.
+        """
+        params = {
+            "video_path": self.video_path,
+            "frame_count": self.frame_count,
+            "min_frame_count": self.MIN_FRAME_COUNT,
+            "width": self.width,
+            "height": None,
+        }
+        params.update(kwargs)
+        utility.validate_inputs(**params)
+
     @patch("movie_barcodes.utility.path.exists")
     def test_file_not_found_error(self, mock_exists: MagicMock) -> None:
         """
-        Test that validate_args raises a FileNotFoundError when the input video file does not exist.
+        Test that validate_inputs raises a FileNotFoundError when the input video file does not exist.
         :param mock_exists: MagicMock object for path.exists function to return False
         :return: None
         """
         mock_exists.return_value = False
         with self.assertRaises(FileNotFoundError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate()
 
-    @patch("movie_barcodes.utility.path.exists")
-    def test_invalid_extension_error(self, mock_exists: MagicMock) -> None:
+    def test_invalid_extension_error(self) -> None:
         """
-        Test that validate_args raises a ValueError when the input video file has an invalid extension.
-        :param mock_exists: MagicMock object for path.exists function to return True
+        Test that validate_inputs raises a ValueError when the input video file has an invalid extension.
         :return: None
         """
-        mock_exists.return_value = True
-        self.args.input_video_path = "invalid_extension.txt"
         with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(video_path="invalid_extension.txt")
 
-    @patch("movie_barcodes.utility.path.exists")
     @patch("movie_barcodes.utility.access")
-    def test_destination_path_not_writable(self, mock_access: MagicMock, mock_exists: MagicMock) -> None:
+    def test_destination_path_not_writable(self, mock_access: MagicMock) -> None:
         """
-        Test that validate_args raises a PermissionError when the destination path is not writable.
+        Test that validate_destination_path raises a PermissionError when the destination path is not writable.
         :param mock_access: MagicMock object for os.access function to return False
-        :param mock_exists: MagicMock object for path.exists function to return True
         :return: None
         """
-        mock_exists.return_value = True
         mock_access.return_value = False
         with self.assertRaises(PermissionError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            utility.validate_destination_path(self.destination_path)
 
-    @patch("movie_barcodes.utility.path.exists")
-    def test_workers_value_error(self, mock_exists: MagicMock) -> None:
+    def test_destination_path_none_is_valid(self) -> None:
         """
-        Test that validate_args raises a ValueError when the number of workers is lower than 1.
-        :param mock_exists: MagicMock object for path.exists function to return True
+        Without destination path (default location), nothing is checked.
         :return: None
         """
-        mock_exists.return_value = True
+        self.mock_access.return_value = False
+        utility.validate_destination_path(None)
+        self.mock_access.assert_not_called()
+
+    def test_workers_value_error(self) -> None:
+        """
+        Test that resolve_workers raises a ValueError when the number of workers is lower than 1.
+        :return: None
+        """
         for workers in (0, -1):
-            self.args.workers = workers
             with self.assertRaises(ValueError):
-                utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+                utility.resolve_workers(workers, self.MAX_PROCESSES)
 
     def test_workers_capped_to_max_processes(self) -> None:
         """
-        Test that validate_args caps workers to MAX_PROCESSES with a warning instead of raising.
+        Test that resolve_workers caps workers to MAX_PROCESSES with a warning instead of raising.
         :return: None
         """
-        self.args.workers = self.MAX_PROCESSES * 2
         with self.assertLogs(level="WARNING") as logs:
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
-        self.assertEqual(self.args.workers, self.MAX_PROCESSES)
+            workers = utility.resolve_workers(self.MAX_PROCESSES * 2, self.MAX_PROCESSES)
+        self.assertEqual(workers, self.MAX_PROCESSES)
         self.assertEqual(len(logs.records), 1)
         self.assertIn(
             f"Requested {self.MAX_PROCESSES * 2} workers but only {self.MAX_PROCESSES} CPU cores are available",
@@ -111,80 +115,60 @@ class TestUtility(unittest.TestCase):
 
     def test_workers_within_limit_unchanged(self) -> None:
         """
-        Test that validate_args leaves workers untouched and logs nothing when it does not exceed MAX_PROCESSES.
+        Test that resolve_workers leaves workers untouched and logs nothing when it does not exceed MAX_PROCESSES.
         :return: None
         """
-        for workers in (1, self.MAX_PROCESSES):
-            self.args.workers = workers
+        for workers in (None, 1, self.MAX_PROCESSES):
             with self.assertNoLogs(level="WARNING"):
-                utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
-            self.assertEqual(self.args.workers, workers)
+                self.assertEqual(utility.resolve_workers(workers, self.MAX_PROCESSES), workers)
 
     def test_invalid_width(self) -> None:
         """
-        Test that validate_args raises a ValueError when the width is invalid.
+        Test that validate_inputs raises a ValueError when the width is invalid.
         :return: None
         """
-        self.args.width = 0  # Testing for <= 0
         with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(width=0)  # Testing for <= 0
 
-        self.args.width = self.frame_count + 1  # Testing for > frame_count
         with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(width=self.frame_count + 1)  # Testing for > frame_count
 
     def test_invalid_height(self) -> None:
         """
-        Test that validate_args raises a ValueError when the height is invalid.
+        Test that validate_inputs raises a ValueError when the height is invalid.
         :return: None
         """
-        self.args.height = 0  # Testing for <= 0
         with self.assertRaises(ValueError):
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(height=0)  # Testing for <= 0
 
-        # Heights greater than frame_count are now allowed (no exception expected)
-        self.args.height = self.frame_count + 1
-        utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        # Heights greater than frame_count are allowed (no exception expected)
+        self._validate(height=self.frame_count + 1)
 
     def test_frame_count_too_low(self) -> None:
         """
-        Test that validate_args raises a ValueError when the frame count is too low.
+        Test that validate_inputs raises a ValueError when the frame count is too low.
         :return: None
         """
-        low_frame_count = self.MIN_FRAME_COUNT - 1
         with self.assertRaises(ValueError):
-            utility.validate_args(self.args, low_frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(frame_count=self.MIN_FRAME_COUNT - 1)
 
-    @patch("movie_barcodes.utility.path.exists")
-    def test_frame_count_too_low_specific_branch(self, mock_exists: MagicMock) -> None:
+    def test_frame_count_too_low_specific_branch(self) -> None:
         """
-        Ensure the frame_count < MIN_FRAME_COUNT branch in validate_args is executed
+        Ensure the frame_count < min_frame_count branch in validate_inputs is executed
         by avoiding earlier width/height validations.
-        :param mock_exists: MagicMock for path.exists
         :return: None
         """
-        mock_exists.return_value = True
-        self.args.width = None
-        self.args.height = None
         with self.assertRaises(ValueError) as cm:
-            utility.validate_args(self.args, self.MIN_FRAME_COUNT - 1, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            self._validate(frame_count=self.MIN_FRAME_COUNT - 1, width=None, height=None)
         self.assertIn(f"at least {self.MIN_FRAME_COUNT} frames", str(cm.exception))
-
-    def test_all_methods_and_method_error(self) -> None:
-        """
-        When --all_methods is provided, it should no longer raise even if --method is set.
-        :return: None
-        """
-        self.args.all_methods = True
-        self.args.method = "avg"  # Explicitly setting method to simulate conflict
-        utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
 
     def test_no_error_raised(self) -> None:
         """
         Test that no error is raised when all arguments are valid.
         :return: None
         """
-        utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+        self._validate()
+        utility.validate_destination_path(self.destination_path)
 
     def test_destination_in_missing_directory_is_valid(self) -> None:
         """
@@ -194,9 +178,7 @@ class TestUtility(unittest.TestCase):
         """
         self.patcher_exists.stop()
         with tempfile.TemporaryDirectory() as tmp:
-            self.args.input_video_path = "tests/sample.mp4"
-            self.args.destination_path = os.path.join(tmp, "new", "nested", "out.png")
-            utility.validate_args(self.args, self.frame_count, self.MAX_PROCESSES, self.MIN_FRAME_COUNT)
+            utility.validate_destination_path(os.path.join(tmp, "new", "nested", "out.png"))
             self.mock_access.assert_called_with(tmp, utility.W_OK)
 
     @patch("movie_barcodes.utility.makedirs")
@@ -206,9 +188,9 @@ class TestUtility(unittest.TestCase):
         :param mock_makedirs: MagicMock object for os.makedirs function
         :return: None
         """
-        utility.ensure_directory(self.args.destination_path)
+        utility.ensure_directory(self.destination_path)
 
-        mock_makedirs.assert_called_once_with(self.args.destination_path, exist_ok=True)
+        mock_makedirs.assert_called_once_with(self.destination_path, exist_ok=True)
 
     def test_format_time_seconds_only(self) -> None:
         """
@@ -329,10 +311,8 @@ class TestUtility(unittest.TestCase):
         ]  # CAP_PROP_FRAME_COUNT, CAP_PROP_FPS
         mock_getsize.return_value = video_size
 
-        args = argparse.Namespace(input_video_path="test/sample.mp4")
-
         # Call the function with the mocked objects/return values
-        result = utility.get_video_properties(mock_video, args)
+        result = utility.get_video_properties(mock_video, "test/sample.mp4")
 
         # Assert that the function returns the expected tuple
         expected_result = (total_frames, fps, video_duration, video_size)
@@ -341,20 +321,21 @@ class TestUtility(unittest.TestCase):
         # Verify that the mocks were called as expected
         mock_video.get.assert_any_call(cv2.CAP_PROP_FRAME_COUNT)
         mock_video.get.assert_any_call(cv2.CAP_PROP_FPS)
-        mock_getsize.assert_called_once_with(args.input_video_path)
+        mock_getsize.assert_called_once_with("test/sample.mp4")
 
-    def _save_in_tmp_cwd(self, args: argparse.Namespace, barcode: np.ndarray = None) -> str:
+    def _save_in_tmp_cwd(self, image: Image.Image = None, **output_path_kwargs) -> str:
         """
-        Run save_barcode_image from a temporary working directory and return that directory.
+        Save a barcode at get_output_path(...) from a temporary working directory and return that directory.
         """
-        if barcode is None:
-            barcode = np.zeros((10, 10, 3), dtype=np.uint8)
+        if image is None:
+            image = Image.new("RGB", (10, 10))
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         cwd = os.getcwd()
         os.chdir(tmp)
         self.addCleanup(os.chdir, cwd)
-        utility.save_barcode_image(barcode, "video_sample", args, "avg")
+        destination_path = utility.get_output_path("video_sample", "avg", "type1", **output_path_kwargs)
+        utility.save_barcode_image(image, destination_path)
         return tmp
 
     def test_save_barcode_image_default_location_is_cwd(self) -> None:
@@ -363,22 +344,39 @@ class TestUtility(unittest.TestCase):
         (not relative to the package location, which is site-packages once installed).
         """
         self.patcher_exists.stop()
-        args = argparse.Namespace(destination_path=None, output_name=None, barcode_type="type1", workers=None)
-        tmp = self._save_in_tmp_cwd(args)
+        tmp = self._save_in_tmp_cwd()
         self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "video_sample_avg_type1.png")))
 
     def test_save_barcode_image_variations(self) -> None:
         """
-        Test file naming variations of save_barcode_image based on workers and output_name.
+        Test file naming variations based on workers and output_name.
         """
         self.patcher_exists.stop()
-        args = argparse.Namespace(destination_path=None, output_name=None, barcode_type="type1", workers=4)
-        tmp = self._save_in_tmp_cwd(args)
+        tmp = self._save_in_tmp_cwd(workers=4)
         self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "video_sample_avg_type1_workers_4.png")))
 
-        args = argparse.Namespace(destination_path=None, output_name="custom_name", barcode_type="type1", workers=4)
-        tmp = self._save_in_tmp_cwd(args)
+        tmp = self._save_in_tmp_cwd(workers=4, output_name="custom_name")
         self.assertTrue(os.path.isfile(os.path.join(tmp, "barcodes", "custom_name.png")))
+
+    def test_get_output_path(self) -> None:
+        """
+        destination_path wins over output_name, which wins over the generated name.
+        """
+        self.assertEqual(
+            utility.get_output_path("movie", "kmeans", "circular"),
+            os.path.join("barcodes", "movie_kmeans_circular.png"),
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "kmeans", "circular", workers=2),
+            os.path.join("barcodes", "movie_kmeans_circular_workers_2.png"),
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "avg", "horizontal", output_name="x"), os.path.join("barcodes", "x.png")
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "avg", "horizontal", output_name="x", destination_path="d/out.png"),
+            "d/out.png",
+        )
 
     def test_save_barcode_image_with_relative_destination_path(self) -> None:
         """
@@ -386,30 +384,36 @@ class TestUtility(unittest.TestCase):
         parent directories are created.
         """
         self.patcher_exists.stop()
-        args = argparse.Namespace(
-            destination_path="relative/output.png", output_name=None, barcode_type="type1", workers=None
-        )
-        tmp = self._save_in_tmp_cwd(args)
+        tmp = self._save_in_tmp_cwd(destination_path="relative/output.png")
         self.assertTrue(os.path.isfile(os.path.join(tmp, "relative", "output.png")))
 
-    def test_save_barcode_image_converts_bgr_to_rgb(self) -> None:
+    def test_barcode_to_image_converts_bgr_to_rgb(self) -> None:
         """
-        Barcodes are BGR(A) internally and must be saved as RGB(A).
+        Barcodes are BGR(A) internally and must become RGB(A) images.
         """
-        self.patcher_exists.stop()
         bgr = np.zeros((2, 2, 3), dtype=np.uint8)
         bgr[..., 0] = 255  # pure blue in BGR
-        args = argparse.Namespace(destination_path="out.png", output_name=None, barcode_type="type1", workers=None)
-        tmp = self._save_in_tmp_cwd(args, bgr)
-        saved = np.asarray(Image.open(os.path.join(tmp, "out.png")))
-        np.testing.assert_array_equal(saved[0, 0], [0, 0, 255])
+        image = utility.barcode_to_image(bgr)
+        self.assertEqual(image.mode, "RGB")
+        np.testing.assert_array_equal(np.asarray(image)[0, 0], [0, 0, 255])
 
         bgra = np.zeros((2, 2, 4), dtype=np.uint8)
         bgra[..., 0] = 255
         bgra[..., 3] = 255
-        tmp = self._save_in_tmp_cwd(args, bgra)
-        saved = np.asarray(Image.open(os.path.join(tmp, "out.png")))
-        np.testing.assert_array_equal(saved[0, 0], [0, 0, 255, 255])
+        image = utility.barcode_to_image(bgra)
+        self.assertEqual(image.mode, "RGBA")
+        np.testing.assert_array_equal(np.asarray(image)[0, 0], [0, 0, 255, 255])
+
+    def test_save_barcode_image_keeps_pixels(self) -> None:
+        """
+        The saved file holds exactly the pixels of the image.
+        """
+        self.patcher_exists.stop()
+        image = Image.new("RGBA", (3, 2), (10, 20, 30, 40))
+        tmp = self._save_in_tmp_cwd(image, destination_path="out.png")
+        with Image.open(os.path.join(tmp, "out.png")) as saved:
+            self.assertEqual(saved.mode, "RGBA")
+            np.testing.assert_array_equal(np.asarray(saved), np.asarray(image))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,4 @@
 import argparse
-import functools
 import logging
 import sys
 import time
@@ -21,7 +20,7 @@ from .video_processing import (
     extract_colors,
     parallel_extract_colors,
     detect_content_area,
-    crop_and_extract,
+    Rect,
 )
 
 MAX_PROCESSES = cpu_count() or 1
@@ -44,22 +43,9 @@ def get_target_frames(args: argparse.Namespace, frame_count: int, frame_width: i
     return max(1, min(frame_width, frame_count))
 
 
-def get_color_function(method: str, crop_rect: Optional[tuple] = None) -> Callable:
-    """
-    Return the color extraction function for a method, cropping frames to crop_rect first if given.
-
-    :param method: The method used to extract the dominant color
-    :param crop_rect: (x, y, w, h) of the area to keep in each frame, or None to use the full frame
-    :return: The function to extract the dominant color from a frame
-    """
-    color_function = get_dominant_color_function(method)
-    if crop_rect is None:
-        return color_function
-    # functools.partial of a module-level function stays picklable for multiprocessing workers
-    return functools.partial(crop_and_extract, color_extractor=color_function, crop_rect=crop_rect)
-
-
-def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[str, Callable]) -> None:
+def generate_and_save_barcodes(
+    args: argparse.Namespace, color_functions: Dict[str, Callable], crop_rect: Optional[Rect] = None
+) -> None:
     """
     Generate and save one barcode image per color extraction method.
 
@@ -68,6 +54,7 @@ def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[s
     :param args: argparse.Namespace object containing the command-line arguments
     :param color_functions: {method: function to extract the dominant color from a frame}, one barcode is saved
         per method
+    :param crop_rect: (x, y, w, h) of the area to keep in each frame, or None to use the full frame
     :return: None
     """
     start_time = time.time()
@@ -91,6 +78,7 @@ def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[s
                 frame_count - 1,
                 color_functions,
                 target_frames,
+                crop_rect=crop_rect,
             )
         else:
             # Perform parallel processing with the user-specified number of workers
@@ -100,6 +88,7 @@ def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[s
                 color_functions,
                 args.workers,
                 target_frames,
+                crop_rect=crop_rect,
             )
     else:
         # If 'workers' is not specified, use the maximum number of available CPU cores
@@ -109,6 +98,7 @@ def generate_and_save_barcodes(args: argparse.Namespace, color_functions: Dict[s
             color_functions,
             MAX_PROCESSES,
             target_frames,
+            crop_rect=crop_rect,
         )
 
     base_name = path.basename(args.input_video_path)
@@ -244,7 +234,7 @@ def main() -> None:
 
     # Choose the method to generate barcode
     methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"] if args.all_methods else [args.method]
-    generate_and_save_barcodes(args, {method: get_color_function(method, crop_rect) for method in methods})
+    generate_and_save_barcodes(args, {method: get_dominant_color_function(method) for method in methods}, crop_rect)
 
 
 if __name__ == "__main__":

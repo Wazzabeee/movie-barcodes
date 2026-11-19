@@ -127,6 +127,22 @@ def test_all_methods_match_single_method_runs(workdir: str, avg_cropped: np.ndar
     np.testing.assert_array_equal(load(workdir, f"{VIDEO_NAME}_bgr_horizontal_workers_2"), bgr_cropped)
 
 
+def test_all_methods_with_output_name_saves_one_file_per_method(workdir: str, avg_cropped: np.ndarray) -> None:
+    # -n NAME used to give the same path to all methods: each image overwrote the previous one
+    run_cli(workdir, "-a", "-w", "2", "--crop-borders", "-n", "allm")
+    for method in ["avg", "bgr", "hsv", "kmeans", "smoothed"]:
+        assert os.path.exists(os.path.join(workdir, "barcodes", f"allm_{method}.png"))
+    assert not os.path.exists(os.path.join(workdir, "barcodes", "allm.png"))
+    np.testing.assert_array_equal(load(workdir, "allm_avg"), avg_cropped)
+
+
+def test_all_methods_with_destination_path_saves_one_file_per_method(workdir: str) -> None:
+    run_cli(workdir, "-a", "-w", "2", "-d", os.path.join("out", "file.png"))
+    for method in ["avg", "bgr", "hsv", "kmeans", "smoothed"]:
+        assert os.path.exists(os.path.join(workdir, "out", f"file_{method}.png"))
+    assert not os.path.exists(os.path.join(workdir, "out", "file.png"))
+
+
 def test_too_many_workers_are_capped_with_warning(workdir: str, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         run_cli(workdir, "-m", "avg", "-w", "999", "-n", "capped", max_processes=2)

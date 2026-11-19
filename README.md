@@ -59,7 +59,7 @@ usage: movie-barcodes [-h] -i INPUT_VIDEO_PATH [-d [DESTINATION_PATH]] [-t {hori
 
 - `-n`, `--output_name`: Custom name for the output barcode image. If not provided, a name will be automatically generated. (Optional, type: str)
 
-- `-a`, `--all_methods`: If set, all extraction methods will be run. This overrides `--method` and produces one image per method. Default is False. (Optional, type: bool)
+- `-a`, `--all_methods`: If set, all extraction methods will be run. This overrides `--method` and produces one image per method. With `-n NAME` or `-d path/file.png`, the method is appended to the name so the images don't overwrite each other (`NAME_avg.png`, `NAME_kmeans.png`... or `path/file_avg.png`, `path/file_kmeans.png`...). Default is False. (Optional, type: bool)
 
 - `--crop-borders`: If set, black borders (letterbox bars on a 2.39:1 movie encoded in 16:9, or pillarbox bars on the sides) are detected once, from about 25 frames spread over the movie, and ignored when extracting colors, so they no longer darken the barcode. The output image size is unchanged. Default is False. (Optional, type: bool)
 

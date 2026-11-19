@@ -6,6 +6,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
+import numpy as np
 from PIL import Image
 
 from movie_barcodes import cli as main
@@ -121,6 +122,34 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(extract_spy.call_count, 1)
         methods = ["avg", "bgr", "hsv", "kmeans", "smoothed"]
         self.assertEqual(saved, [f"sample_{method}_horizontal_workers_1.png" for method in methods])
+
+    def test_linear_all_methods_parallel(self):
+        """
+        --linear with -a, --crop-borders and 2 workers: the linear extractors survive pickling, only avg and
+        smoothed get a '_linear' file, and linear averaging is never darker than gamma averaging.
+        """
+        video_path = os.path.abspath(self.input_video_path)
+        common = ["movie-barcodes", "-i", video_path, "-w", "2", "--width", "20", "--height", "10", "--crop-borders"]
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.chdir(tmp_dir)
+            try:
+                with patch.object(sys, "argv", common + ["-a", "--linear"]):
+                    main.main()
+                with patch.object(sys, "argv", common + ["-m", "avg"]):
+                    main.main()
+                saved = sorted(os.listdir("barcodes"))
+                with Image.open("barcodes/sample_avg_linear_horizontal_workers_2.png") as image:
+                    linear = np.asarray(image.convert("RGB"), dtype=float)
+                with Image.open("barcodes/sample_avg_horizontal_workers_2.png") as image:
+                    gamma = np.asarray(image.convert("RGB"), dtype=float)
+            finally:
+                os.chdir(cwd)
+
+        methods = ["avg", "avg_linear", "bgr", "hsv", "kmeans", "smoothed_linear"]
+        self.assertEqual(saved, [f"sample_{method}_horizontal_workers_2.png" for method in methods])
+        self.assertTrue(np.all(linear >= gamma - 1))
+        self.assertGreater(linear.mean(), gamma.mean())
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 
 
-from movie_barcodes import utility
+from movie_barcodes import utility, color_extraction
 
 
 class TestUtility(unittest.TestCase):
@@ -245,6 +245,25 @@ class TestUtility(unittest.TestCase):
         time_seconds = 3661.6  # Should round to 1 hour, 1 minute, and 1 seconds
         expected_format = "1h 1m 1s"
         self.assertEqual(utility.format_time(time_seconds), expected_format)
+
+    def test_get_dominant_color_function_linear(self) -> None:
+        """
+        --linear swaps the avg and smoothed extractors only; the default mapping is unchanged.
+        """
+        self.assertIs(utility.get_dominant_color_function("avg"), color_extraction.get_dominant_color_mean)
+        self.assertIs(utility.get_dominant_color_function("smoothed"), color_extraction.get_smoothed_frame)
+        self.assertIs(
+            utility.get_dominant_color_function("avg", linear=True), color_extraction.get_dominant_color_mean_linear
+        )
+        self.assertIs(
+            utility.get_dominant_color_function("smoothed", linear=True), color_extraction.get_smoothed_frame_linear
+        )
+        for method in ("kmeans", "hsv", "bgr"):
+            with self.subTest(method=method):
+                self.assertIs(
+                    utility.get_dominant_color_function(method, linear=True),
+                    utility.get_dominant_color_function(method),
+                )
 
     def test_get_dominant_color_function_with_invalid_method(self) -> None:
         """

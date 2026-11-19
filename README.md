@@ -83,6 +83,27 @@ python -m movie_barcodes -i "path/to/video" --width 200 -w 1
 python -m movie_barcodes -i "path/to/video" --width 200 -w 8
 ```
 
+# Python API
+The barcodes can also be generated from Python (a notebook, another application...). The functions return PIL images and write nothing to disk: RGB images for horizontal barcodes, RGBA images with a transparent background for circular barcodes.
+
+```python
+from movie_barcodes import create_barcode, create_barcodes
+
+if __name__ == "__main__":  # needed on macOS and Windows when using several workers (the default)
+    # One barcode; same options and defaults as the command line
+    image = create_barcode("path/to/video.mp4", method="smoothed", barcode_type="circular", crop_borders=True)
+    # linear=True averages in linear light, like --linear (avg and smoothed only)
+    bright = create_barcode("path/to/video.mp4", method="avg", linear=True)
+    image.save("barcode.png")
+
+    # Several methods at once: the video is decoded only once
+    barcodes = create_barcodes("path/to/video.mp4", methods=["avg", "kmeans"], width=500, height=200, workers=4)
+    for method, image in barcodes.items():
+        image.save(f"barcode_{method}.png")
+```
+
+Invalid inputs raise `FileNotFoundError` (missing video) or `ValueError` (unsupported extension, unknown method or barcode type, invalid width, height or number of workers).
+
 # Development Setup
 ```bash
 # Clone this repository

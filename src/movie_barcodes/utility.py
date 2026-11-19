@@ -1,7 +1,6 @@
-import argparse
 import logging
 from os import path, access, W_OK, makedirs
-from typing import Callable
+from typing import Callable, Optional
 import cv2
 import numpy as np
 from PIL import Image
@@ -21,64 +20,90 @@ from .color_extraction import (
 LINEAR_METHODS = ("avg", "smoothed")
 
 
-def validate_args(args: argparse.Namespace, frame_count: int, MAX_PROCESSES: int, MIN_FRAME_COUNT: int) -> None:
+def validate_inputs(
+    video_path: str,
+    frame_count: int,
+    min_frame_count: int,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+) -> None:
     """
-    Validate command-line arguments for logical errors.
+    Validate the input video and the requested barcode dimensions.
 
-    If ``args.workers`` exceeds ``MAX_PROCESSES``, a warning is logged and ``args.workers`` is capped to
-    ``MAX_PROCESSES`` in place (so the output file name reflects the number of workers actually used).
-
-    :param argparse.Namespace args: The command-line arguments.
+    :param str video_path: The path to the input video file.
     :param int frame_count: The number of frames in the video.
-    :param int MAX_PROCESSES: The maximum number of processes to use (number of available CPU cores).
-    :param int MIN_FRAME_COUNT: The minimum number of frames required in the video.
+    :param int min_frame_count: The minimum number of frames required in the video.
+    :param Optional[int] width: The requested number of sampled frames (barcode width), or None for the default.
+    :param Optional[int] height: The requested barcode height, or None for the default.
     :return: None
     :raises FileNotFoundError: If the input video file does not exist.
-    :raises ValueError: If the video file has an invalid extension, the number of workers is lower than 1, the width
-        is invalid, or the frame count is too low.
-    :raises PermissionError: If the destination path is not writable.
+    :raises ValueError: If the video file has an invalid extension, the width or height is invalid, or the frame
+        count is too low.
     """
     # Check if input video file exists
-    if not path.exists(args.input_video_path):
-        raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
+    if not path.exists(video_path):
+        raise FileNotFoundError(f"The specified input video file '{video_path}' does not exist.")
 
     valid_extensions = [".mp4", ".webm", ".mkv"]
-    if path.splitext(args.input_video_path)[1].lower() not in valid_extensions:
+    if path.splitext(video_path)[1].lower() not in valid_extensions:
         raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm, .mkv).")
 
-    # Check if the destination path is writable. Missing parent directories are created at save time,
-    # so check the closest existing ancestor (paths are relative to the current working directory).
-    if args.destination_path is not None:
-        destination_dir = path.dirname(path.abspath(args.destination_path))
-        while not path.exists(destination_dir) and path.dirname(destination_dir) != destination_dir:
-            destination_dir = path.dirname(destination_dir)
-        if not access(destination_dir, W_OK):
-            raise PermissionError(f"The specified destination path '{args.destination_path}' is not writable.")
-
-    if args.workers is not None:
-        if args.workers < 1:
-            raise ValueError("The number of workers must be greater than or equal to 1.")
-        if args.workers > MAX_PROCESSES:
-            logging.warning(
-                "Requested %d workers but only %d CPU cores are available; using %d.",
-                args.workers,
-                MAX_PROCESSES,
-                MAX_PROCESSES,
-            )
-            args.workers = MAX_PROCESSES
-
-    if args.width is not None:
-        if args.width <= 0:
+    if width is not None:
+        if width <= 0:
             raise ValueError("Width must be greater than 0.")
-        if args.width > frame_count:
+        if width > frame_count:
             raise ValueError("Width must be less than or equal to the number of frames.")
 
-    if args.height is not None:
-        if args.height <= 0:
+    if height is not None:
+        if height <= 0:
             raise ValueError("Height must be greater than 0.")
 
-    if frame_count < MIN_FRAME_COUNT:
-        raise ValueError(f"The video must have at least {MIN_FRAME_COUNT} frames.")
+    if frame_count < min_frame_count:
+        raise ValueError(f"The video must have at least {min_frame_count} frames.")
+
+
+def validate_destination_path(destination_path: Optional[str]) -> None:
+    """
+    Check that an output image path is writable.
+
+    Missing parent directories are created at save time, so the closest existing ancestor is checked (paths are
+    relative to the current working directory).
+
+    :param Optional[str] destination_path: The output image path, or None for the default location.
+    :return: None
+    :raises PermissionError: If the destination path is not writable.
+    """
+    if destination_path is None:
+        return
+    destination_dir = path.dirname(path.abspath(destination_path))
+    while not path.exists(destination_dir) and path.dirname(destination_dir) != destination_dir:
+        destination_dir = path.dirname(destination_dir)
+    if not access(destination_dir, W_OK):
+        raise PermissionError(f"The specified destination path '{destination_path}' is not writable.")
+
+
+def resolve_workers(workers: Optional[int], max_processes: int) -> Optional[int]:
+    """
+    Validate the requested number of workers and cap it to the number of available CPU cores.
+
+    :param Optional[int] workers: The requested number of workers, or None for the default (all CPU cores).
+    :param int max_processes: The maximum number of processes to use (number of available CPU cores).
+    :return: The number of workers to use (None stays None). A warning is logged when it is capped.
+    :raises ValueError: If the number of workers is lower than 1.
+    """
+    if workers is None:
+        return None
+    if workers < 1:
+        raise ValueError("The number of workers must be greater than or equal to 1.")
+    if workers > max_processes:
+        logging.warning(
+            "Requested %d workers but only %d CPU cores are available; using %d.",
+            workers,
+            max_processes,
+            max_processes,
+        )
+        return max_processes
+    return workers
 
 
 def get_dominant_color_function(method: str, linear: bool = False) -> Callable:
@@ -124,64 +149,79 @@ def format_time(seconds: float) -> str:
     return f"{int(minutes)}m {int(seconds)}s"
 
 
-def get_video_properties(video: cv2.VideoCapture, args: argparse.Namespace) -> tuple:
+def get_video_properties(video: cv2.VideoCapture, video_path: str) -> tuple:
     """
     Extracts and returns various properties of a video.
 
     :param cv2.VideoCapture video: The video capture object.
-    :param args: Command line arguments.
+    :param str video_path: The path to the video file.
     :return: Tuple containing total frames, FPS, video duration in seconds, and video size in bytes.
     """
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = video.get(cv2.CAP_PROP_FPS)
     video_duration = total_frames / fps if fps > 0 else 0  # in seconds
-    video_size = path.getsize(args.input_video_path)  # in bytes
+    video_size = path.getsize(video_path)  # in bytes
 
     return total_frames, fps, video_duration, video_size
 
 
-def save_barcode_image(barcode: np.ndarray, base_name: str, args: argparse.Namespace, method: str) -> None:
+def barcode_to_image(barcode: np.ndarray) -> Image.Image:
     """
-    Saves a generated barcode image to a file.
+    Convert a generated barcode (BGR, or BGRA for circular barcodes) to a PIL image (RGB or RGBA).
 
     :param np.ndarray barcode: The barcode image as a NumPy array.
-    :param str base_name: The base name of the file to save.
-    :param args: Command line arguments.
-    :param str method: The method used for color extraction.
+    :return: The barcode as an RGB or RGBA PIL image.
     """
-    # Paths are resolved relative to the current working directory (not the package install location,
-    # which would be site-packages once installed with pip).
-    if not args.destination_path:
-        # If destination_path isn't specified, save in ./barcodes with a name based on the video's name
-        barcode_dir = "barcodes"
-        ensure_directory(barcode_dir)
+    if barcode.shape[2] == 4:  # If the image has an alpha channel (BGRA)
+        return Image.fromarray(cv2.cvtColor(barcode, cv2.COLOR_BGRA2RGBA), "RGBA")
+    return Image.fromarray(cv2.cvtColor(barcode, cv2.COLOR_BGR2RGB), "RGB")
 
-        # If an output_name is provided by the user
-        if args.output_name:
-            destination_name = args.output_name + ".png"
-        else:
-            filename_parts = [base_name, method, args.barcode_type]
-            if args.workers:
-                filename_parts.append(f"workers_{str(args.workers)}")
-            destination_name = "_".join(filename_parts) + ".png"
 
-        destination_path = path.join(barcode_dir, destination_name)
+def get_output_path(
+    base_name: str,
+    method: str,
+    barcode_type: str,
+    workers: Optional[int] = None,
+    destination_path: Optional[str] = None,
+    output_name: Optional[str] = None,
+) -> str:
+    """
+    Path where the command line saves a barcode image.
+
+    Paths are resolved relative to the current working directory (not the package install location, which would
+    be site-packages once installed with pip).
+
+    :param str base_name: The video file name without extension.
+    :param str method: The method used for color extraction.
+    :param str barcode_type: The type of barcode ("horizontal" or "circular").
+    :param Optional[int] workers: The number of workers requested by the user, or None if not specified.
+    :param Optional[str] destination_path: The output path chosen by the user, if any.
+    :param Optional[str] output_name: The output file name (without extension) chosen by the user, if any.
+    :return: destination_path if given, else barcodes/<output_name>.png, else
+        barcodes/<base_name>_<method>_<barcode_type>[_workers_<workers>].png
+    """
+    if destination_path:
+        return destination_path
+    if output_name:
+        destination_name = output_name + ".png"
     else:
-        destination_path = args.destination_path
-        # Ensure parent directory exists if user provided a custom path
-        parent_dir = path.dirname(destination_path)
-        if parent_dir:
-            ensure_directory(parent_dir)
+        filename_parts = [base_name, method, barcode_type]
+        if workers:
+            filename_parts.append(f"workers_{str(workers)}")
+        destination_name = "_".join(filename_parts) + ".png"
+    return path.join("barcodes", destination_name)
 
-    if barcode.shape[2] == 4:  # If the image has an alpha channel (RGBA)
-        # Convert BGRA -> RGBA once at save-time
-        barcode_to_save = cv2.cvtColor(barcode, cv2.COLOR_BGRA2RGBA)
-        image = Image.fromarray(barcode_to_save, "RGBA")
-    else:  # If the image doesn't have an alpha channel (RGB)
-        # Convert BGR -> RGB once at save-time
-        barcode_to_save = cv2.cvtColor(barcode, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(barcode_to_save, "RGB")
 
+def save_barcode_image(image: Image.Image, destination_path: str) -> None:
+    """
+    Saves a barcode image to a file, creating the parent directories if needed.
+
+    :param Image.Image image: The barcode image.
+    :param str destination_path: The path of the image file.
+    """
+    parent_dir = path.dirname(destination_path)
+    if parent_dir:
+        ensure_directory(parent_dir)
     image.save(destination_path)
     logging.info("File saved at '%s'", path.abspath(destination_path))
 

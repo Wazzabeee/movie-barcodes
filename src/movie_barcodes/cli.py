@@ -3,122 +3,69 @@ import logging
 import sys
 import time
 
-from typing import Callable, Dict, Optional
-from os import cpu_count, path
+from os import path
 
-from .barcode_generation import generate_circular_barcode, generate_barcode
-
+from .api import MAX_PROCESSES, METHODS, create_barcodes
 from .utility import (
-    save_barcode_image,
-    get_dominant_color_function,
-    format_time,
     LINEAR_METHODS,
+    format_time,
+    get_output_path,
     get_video_properties,
-    validate_args,
+    resolve_workers,
+    save_barcode_image,
+    validate_destination_path,
 )
-from .video_processing import (
-    load_video,
-    extract_colors,
-    parallel_extract_colors,
-    detect_content_area,
-    Rect,
-)
-
-MAX_PROCESSES = cpu_count() or 1
-MIN_FRAME_COUNT = 2
+from .video_processing import load_video
 
 
-def get_target_frames(args: argparse.Namespace, frame_count: int, frame_width: int) -> int:
+def generate_and_save_barcodes(args: argparse.Namespace) -> None:
     """
-    Number of frames to sample from the video.
+    Generate and save one barcode image per requested color extraction method.
 
-    For horizontal barcodes it is also the output width in pixels; for circular barcodes it is the number of rings.
+    With --all_methods, the video is decoded once: every sampled frame goes through all the color extraction
+    functions.
 
     :param args: argparse.Namespace object containing the command-line arguments
-    :param frame_count: The number of frames in the video
-    :param frame_width: The width of the video frames in pixels
-    :return: The number of frames to sample: --width if provided, else min(video width, frame count)
-    """
-    if args.width is not None:
-        return args.width
-    return max(1, min(frame_width, frame_count))
-
-
-def generate_and_save_barcodes(
-    args: argparse.Namespace, color_functions: Dict[str, Callable], crop_rect: Optional[Rect] = None
-) -> None:
-    """
-    Generate and save one barcode image per color extraction method.
-
-    The video is decoded once: every sampled frame goes through all the color extraction functions.
-
-    :param args: argparse.Namespace object containing the command-line arguments
-    :param color_functions: {method: function to extract the dominant color from a frame}, one barcode is saved
-        per method
-    :param crop_rect: (x, y, w, h) of the area to keep in each frame, or None to use the full frame
     :return: None
     """
+    # Fail before decoding the video if the image cannot be saved
+    validate_destination_path(args.destination_path)
+    # Workers above the number of CPU cores are capped (with a warning); the file name mentions the number of
+    # workers actually used, only when the user chose it
+    workers = resolve_workers(args.workers, MAX_PROCESSES)
+
     start_time = time.time()
+    methods = list(METHODS) if args.all_methods else [args.method]
+    barcodes = create_barcodes(
+        args.input_video_path,
+        methods,
+        barcode_type=args.barcode_type,
+        width=args.width,
+        height=args.height,
+        workers=workers,
+        crop_borders=args.crop_borders,
+        linear=args.linear,
+    )
 
-    # Get Video Properties
-    video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
-    _, _, video_duration, video_size = get_video_properties(video, args)
-    video.release()
-
-    # Number of frames to sample: one per output column (horizontal) or ring (circular).
-    # Defaults to the video width, capped by the number of frames.
-    target_frames = get_target_frames(args, frame_count, frame_width)
-
-    # If the user specifies the 'workers' argument
-    if args.workers is not None:
-        if args.workers == 1:
-            # If the user explicitly sets 'workers' to 1, use sequential processing
-            colors_by_method = extract_colors(
-                args.input_video_path,
-                0,
-                frame_count - 1,
-                color_functions,
-                target_frames,
-                crop_rect=crop_rect,
-            )
-        else:
-            # Perform parallel processing with the user-specified number of workers
-            colors_by_method = parallel_extract_colors(
-                args.input_video_path,
-                frame_count,
-                color_functions,
-                args.workers,
-                target_frames,
-                crop_rect=crop_rect,
-            )
-    else:
-        # If 'workers' is not specified, use the maximum number of available CPU cores
-        colors_by_method = parallel_extract_colors(
-            args.input_video_path,
-            frame_count,
-            color_functions,
-            MAX_PROCESSES,
-            target_frames,
-            crop_rect=crop_rect,
+    file_name_without_extension = path.splitext(path.basename(args.input_video_path))[0]
+    for method, image in barcodes.items():
+        # With --linear, avg and smoothed barcodes get a distinct name so they don't overwrite the gamma averaged ones
+        output_method = f"{method}_linear" if args.linear and method in LINEAR_METHODS else method
+        destination_path = get_output_path(
+            file_name_without_extension,
+            output_method,
+            args.barcode_type,
+            workers=workers,
+            destination_path=args.destination_path,
+            output_name=args.output_name,
         )
+        save_barcode_image(image, destination_path)
 
-    base_name = path.basename(args.input_video_path)
-    file_name_without_extension = path.splitext(base_name)[0]
+    processing_time = time.time() - start_time
 
-    for method, colors in colors_by_method.items():
-        # Generate the appropriate type of barcode
-        if args.barcode_type == "circular":
-            barcode = generate_circular_barcode(colors, frame_width)
-        else:
-            # Use the specified height if provided, otherwise use the video frame height
-            barcode_height = args.height if args.height is not None else frame_height
-            barcode = generate_barcode(colors, barcode_height, frame_count, target_frames)
-
-        save_barcode_image(barcode, file_name_without_extension, args, method)
-
-    # Calculate processing time
-    end_time = time.time()
-    processing_time = end_time - start_time
+    video, frame_count, _, _ = load_video(args.input_video_path)
+    _, _, video_duration, video_size = get_video_properties(video, args.input_video_path)
+    video.release()
 
     # Log the information
     logging.info("Processed File: %s", file_name_without_extension)
@@ -209,6 +156,7 @@ def main() -> None:
         help="If provided, detect black borders (letterbox / pillarbox) once and ignore them when extracting "
         "colors. Default is False.",
     )
+
     parser.add_argument(
         "--linear",
         action="store_true",
@@ -220,36 +168,7 @@ def main() -> None:
     # Parse arguments
     args = parser.parse_args()
 
-    # Check the input file exists before trying to open it, to get a clear error message
-    if not path.exists(args.input_video_path):
-        raise FileNotFoundError(f"The specified input video file '{args.input_video_path}' does not exist.")
-
-    # Validate and process video file
-    video, frame_count, frame_width, frame_height = load_video(args.input_video_path)
-    video.release()
-    validate_args(args, frame_count, MAX_PROCESSES, MIN_FRAME_COUNT)
-
-    # Detect black borders once for the whole run
-    crop_rect = None
-    if args.crop_borders:
-        crop_rect = detect_content_area(args.input_video_path, frame_count)
-        _, _, crop_width, crop_height = crop_rect
-        if (crop_width, crop_height) == (frame_width, frame_height):
-            logging.info("Cropping borders: no black borders detected")
-            crop_rect = None
-        else:
-            logging.info("Cropping borders: %dx%d -> %dx%d", frame_width, frame_height, crop_width, crop_height)
-
-    # Choose the method to generate barcode
-    methods = ["avg", "hsv", "bgr", "kmeans", "smoothed"] if args.all_methods else [args.method]
-    # With --linear, avg and smoothed barcodes get a distinct name so they don't overwrite the gamma averaged ones
-    color_functions = {
-        f"{method}_linear" if args.linear and method in LINEAR_METHODS else method: get_dominant_color_function(
-            method, args.linear
-        )
-        for method in methods
-    }
-    generate_and_save_barcodes(args, color_functions, crop_rect)
+    generate_and_save_barcodes(args)
 
 
 if __name__ == "__main__":

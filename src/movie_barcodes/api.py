@@ -14,6 +14,10 @@ barcode type, any height). The colors can be kept on disk with :func:`save_color
 :func:`iter_barcodes` does all of this for a list of movies, one after another, and reports per-movie errors
 instead of stopping.
 
+Long calls accept ``on_progress(done, total)``, called as frames are decoded, and ``cancel``, a
+:class:`threading.Event` that stops the decoding (terminating the worker processes) and raises :class:`Cancelled`
+once set: e.g. to drive a progress bar and a cancel button from a background thread.
+
 When more than one worker is used (the default), frames are decoded in child processes: on macOS and Windows,
 call these functions under an ``if __name__ == "__main__":`` guard in scripts.
 """
@@ -21,6 +25,7 @@ call these functions under an ``if __name__ == "__main__":`` guard in scripts.
 import json
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
@@ -32,7 +37,10 @@ from PIL import Image
 from .barcode_generation import generate_barcode, generate_circular_barcode
 from .utility import barcode_to_image, get_dominant_color_function, resolve_workers, validate_inputs
 from .video_processing import (
+    Cancelled,
+    ProgressCallback,
     _sample_count,
+    check_cancel,
     _split_work,
     detect_content_area,
     extract_colors,
@@ -161,6 +169,8 @@ def extract_movie_colors(
     workers: Optional[int] = None,
     crop_borders: bool = False,
     linear: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> MovieColors:
     """
     Decode a video once and extract the colors of its sampled frames with one or several methods.
@@ -176,12 +186,19 @@ def extract_movie_colors(
         current process. Values above the number of CPU cores are capped to it, with a warning.
     :param crop_borders: Detect black borders (letterbox / pillarbox) once and ignore them when extracting colors.
     :param linear: Average colors in linear light. Applies to the "avg" and "smoothed" methods only.
+    :param on_progress: Called with (frames processed, frames to sample) as frames are decoded, in the calling
+        thread.
+    :param cancel: Once set (e.g. from another thread), decoding stops, worker processes are terminated and
+        :class:`Cancelled` is raised. Checked for each frame (sequential) or every 0.1 s (parallel); starting the
+        worker processes and detecting borders are not interruptible.
     :return: The extracted colors and the video properties needed to render them.
     :raises FileNotFoundError: If the video file does not exist.
     :raises ValueError: If an argument is invalid, the video cannot be opened or has too few frames.
+    :raises Cancelled: If cancel is set.
     """
     video_path = os.fspath(video_path)
     methods = _check_methods(methods)
+    check_cancel(cancel)
 
     # Check the input file exists before trying to open it, to get a clear error message
     if not os.path.exists(video_path):
@@ -204,6 +221,8 @@ def extract_movie_colors(
         else:
             logger.info("Cropping borders: %dx%d -> %dx%d", frame_width, frame_height, crop_width, crop_height)
 
+    check_cancel(cancel)
+
     color_functions = {method: get_dominant_color_function(method, linear) for method in methods}
 
     # Number of frames to sample: one per output column (horizontal) or ring (circular)
@@ -211,11 +230,25 @@ def extract_movie_colors(
 
     if workers == 1:
         colors_by_method = extract_colors(
-            video_path, 0, frame_count - 1, color_functions, target_frames, crop_rect=crop_rect
+            video_path,
+            0,
+            frame_count - 1,
+            color_functions,
+            target_frames,
+            crop_rect=crop_rect,
+            on_progress=on_progress,
+            cancel=cancel,
         )
     else:
         colors_by_method = parallel_extract_colors(
-            video_path, frame_count, color_functions, workers, target_frames, crop_rect=crop_rect
+            video_path,
+            frame_count,
+            color_functions,
+            workers,
+            target_frames,
+            crop_rect=crop_rect,
+            on_progress=on_progress,
+            cancel=cancel,
         )
 
     return MovieColors(
@@ -407,6 +440,8 @@ def iter_barcodes(
     crop_borders: bool = False,
     linear: bool = False,
     skip: Optional[Callable[[str], bool]] = None,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> Iterator[BarcodeResult]:
     """
     Generate the barcodes of several movies, one after another, yielding one result per input.
@@ -435,8 +470,13 @@ def iter_barcodes(
     :param crop_borders: Detect and ignore black borders (videos only).
     :param linear: Average avg and smoothed colors in linear light (videos only).
     :param skip: Optional predicate called with each path: True gives a "skipped" result without processing it.
+    :param on_progress: Called with (frames processed, frames to sample) of the video being decoded, which is the
+        input after the last yielded result. Not called for colors files.
+    :param cancel: Once set, the current video stops decoding (see :func:`extract_movie_colors`) and
+        :class:`Cancelled` is raised instead of yielding more results. It is not reported as a failed input.
     :return: An iterator of :class:`BarcodeResult`, in input order.
     :raises ValueError: If a method or barcode type is invalid (before processing any input).
+    :raises Cancelled: If cancel is set.
     """
     if methods is not None:
         methods = _check_methods(methods)
@@ -444,6 +484,7 @@ def iter_barcodes(
 
     for path in paths:
         path = os.fspath(path)
+        check_cancel(cancel)
         if skip is not None and skip(path):
             yield BarcodeResult(path, "skipped")
             continue
@@ -460,8 +501,12 @@ def iter_barcodes(
                     workers=workers,
                     crop_borders=crop_borders,
                     linear=linear,
+                    on_progress=on_progress,
+                    cancel=cancel,
                 )
             barcodes = render_barcodes(movie_colors, methods, barcode_types, height)
+        except Cancelled:
+            raise
         except Exception as error:  # One failing movie must not stop the batch
             yield BarcodeResult(path, "failed", error=error, duration=time.time() - start_time)
             continue
@@ -477,6 +522,8 @@ def create_barcodes(
     workers: Optional[int] = None,
     crop_borders: bool = False,
     linear: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> Dict[str, Image.Image]:
     """
     Generate one barcode per color extraction method, decoding the video only once.
@@ -494,11 +541,14 @@ def create_barcodes(
     :param crop_borders: Detect black borders (letterbox / pillarbox) once and ignore them when extracting colors.
     :param linear: Average colors in linear light (brighter on high-contrast scenes). Applies to the "avg" and
         "smoothed" methods only; the other methods are unaffected.
+    :param on_progress: Called with (frames processed, frames to sample) as frames are decoded.
+    :param cancel: Once set, decoding stops and :class:`Cancelled` is raised (see :func:`extract_movie_colors`).
     :return: {method: barcode image}, keyed by the requested method names (also with ``linear``), in the order of
         ``methods``. Horizontal barcodes are RGB images, circular
         barcodes are RGBA images with a transparent background.
     :raises FileNotFoundError: If the video file does not exist.
     :raises ValueError: If an argument is invalid, the video cannot be opened or has too few frames.
+    :raises Cancelled: If cancel is set.
     """
     methods = _check_methods(methods)
     _check_barcode_types([barcode_type])
@@ -510,6 +560,8 @@ def create_barcodes(
         workers=workers,
         crop_borders=crop_borders,
         linear=linear,
+        on_progress=on_progress,
+        cancel=cancel,
     )
     return {method: render_barcode(movie_colors, method, barcode_type, height) for method in methods}
 
@@ -523,6 +575,8 @@ def create_barcode(
     workers: Optional[int] = None,
     crop_borders: bool = False,
     linear: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> Image.Image:
     """
     Generate the color barcode of a video.
@@ -540,10 +594,13 @@ def create_barcode(
     :param crop_borders: Detect black borders (letterbox / pillarbox) once and ignore them when extracting colors.
     :param linear: Average colors in linear light (brighter on high-contrast scenes). Applies to the "avg" and
         "smoothed" methods only; the other methods are unaffected.
+    :param on_progress: Called with (frames processed, frames to sample) as frames are decoded.
+    :param cancel: Once set, decoding stops and :class:`Cancelled` is raised (see :func:`extract_movie_colors`).
     :return: The barcode: an RGB image for horizontal barcodes, an RGBA image with a transparent background for
         circular barcodes.
     :raises FileNotFoundError: If the video file does not exist.
     :raises ValueError: If an argument is invalid, the video cannot be opened or has too few frames.
+    :raises Cancelled: If cancel is set.
     """
     barcodes = create_barcodes(
         video_path,
@@ -554,5 +611,7 @@ def create_barcode(
         workers=workers,
         crop_borders=crop_borders,
         linear=linear,
+        on_progress=on_progress,
+        cancel=cancel,
     )
     return barcodes[method]

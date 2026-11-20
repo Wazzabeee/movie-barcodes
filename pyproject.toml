@@ -38,6 +38,13 @@ dependencies = [
 
 dynamic = ["version"]
 
+[project.optional-dependencies]
+# Desktop app (movie-barcodes-ui): NiceGUI, and pywebview for the native window
+ui = [
+  "nicegui>=4.0,<5",
+  "pywebview>=6.0",
+]
+
 [dependency-groups]
 dev = [
   "pre-commit>=3.7",
@@ -51,6 +58,7 @@ Repository = "https://github.com/Wazzabeee/movie-barcodes"
 
 [project.scripts]
 movie-barcodes = "movie_barcodes.cli:main"
+movie-barcodes-ui = "movie_barcodes.ui:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

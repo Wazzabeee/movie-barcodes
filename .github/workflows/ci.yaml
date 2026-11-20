@@ -8,72 +8,122 @@ on:
       - 'v*'
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: Do the tests pass?
+    name: Do the tests pass? (Python ${{ matrix.python-version }})
     # A deadlock must fail fast instead of running until GitHub's 6-hour limit
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - uses: actions/checkout@v7
+    - name: Install uv and Python ${{ matrix.python-version }}
+      uses: astral-sh/setup-uv@v10.3.3
       with:
-        python-version: '3.12'
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
+        # Sets UV_PYTHON, which overrides the 3.12 pin in .python-version
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies and run tests
       run: |
         uv sync --locked
+        uv run python --version
         uv run pytest tests/ --cov=src --cov-report=xml
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v4.0.1
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
-        fail_ci_if_error: true
+        # Fork and Dependabot PRs get no secrets: only fail on real errors
+        # where the token is available (pushes and the owner's own PRs).
+        fail_ci_if_error: >-
+          ${{ github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository
+          && github.actor != 'dependabot[bot]') }}
 
   good-practices:
     runs-on: ubuntu-latest
     name: Do the code respects Python standards?
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
+    # pre-commit builds its hook environments with the interpreter pinned in
+    # .pre-commit-config.yaml (default_language_version: python3.12), which
+    # must be on PATH: the runner image does not provide it.
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.12'
     - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      uses: astral-sh/setup-uv@v10.3.3
     - name: Run pre-commit (Ruff and hooks)
       run: |
         uvx pre-commit run --all-files --show-diff-on-failure
 
-  release:
-    needs: [ test, good-practices ]
+  # Decides whether this push to main warrants a release (see
+  # .github/scripts/release_bump.sh): feat -> minor, fix/perf -> patch,
+  # "!:" or a BREAKING CHANGE footer -> major, anything else -> none.
+  release-bump:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    outputs:
+      bump: ${{ steps.bump.outputs.bump }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compute version bump from the pushed commits
+        id: bump
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range=("$BEFORE..$AFTER")
+          else
+            range=(-1 "$AFTER")
+          fi
+          git log --format='  %h %s' "${range[@]}"
+          bump=$(.github/scripts/release_bump.sh "${range[@]}")
+          echo "Version bump: $bump"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: [ test, good-practices, release-bump ]
+    if: needs.release-bump.outputs.bump != 'none'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.67.0
+        uses: anothrNick/github-tag-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
           VERBOSE: true
-          DEFAULT_BUMP: auto
-          MAJOR_STRING_TOKEN: 'BREAKING CHANGE:'
-          MINOR_STRING_TOKEN: 'feat:'
-          PATCH_STRING_TOKEN: 'fix:'
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+          BRANCH_HISTORY: last
+          DEFAULT_BUMP: ${{ needs.release-bump.outputs.bump }}
+          # The bump is decided by the release-bump job only: make the
+          # action's own message tokens (#major, #none, ...) unmatchable.
+          MAJOR_STRING_TOKEN: '<release-bump-job:major>'
+          MINOR_STRING_TOKEN: '<release-bump-job:minor>'
+          PATCH_STRING_TOKEN: '<release-bump-job:patch>'
+          NONE_STRING_TOKEN: '<release-bump-job:none>'
+      - name: Check that HEAD is tagged
+        run: git describe --tags --exact-match HEAD
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v10.3.3
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__

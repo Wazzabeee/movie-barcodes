@@ -52,6 +52,13 @@ jobs:
     name: Do the code respects Python standards?
     steps:
     - uses: actions/checkout@v7
+    # pre-commit builds its hook environments with the interpreter pinned in
+    # .pre-commit-config.yaml (default_language_version: python3.12), which
+    # must be on PATH: the runner image does not provide it.
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
     - name: Install uv
       uses: astral-sh/setup-uv@v10.3.3
     - name: Run pre-commit (Ruff and hooks)

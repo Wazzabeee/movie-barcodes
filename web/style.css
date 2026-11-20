@@ -1,0 +1,129 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f2;
+  --panel: #ffffff;
+  --text: #1d1d1f;
+  --muted: #6b6b70;
+  --border: #dcdad5;
+  --accent: #3555d6;
+  --accent-text: #ffffff;
+  --error: #b42318;
+  --warning-bg: #fff4d6;
+  --checker: #e9e7e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416;
+    --panel: #1e1e21;
+    --text: #ececef;
+    --muted: #9a9aa1;
+    --border: #34343a;
+    --accent: #7b93ff;
+    --accent-text: #0d0d10;
+    --error: #ff8a7a;
+    --warning-bg: #3a3014;
+    --checker: #2a2a2e;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0 auto;
+  max-width: 1040px;
+  padding: 24px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1 { margin: 0 0 4px; font-size: 28px; }
+h2 { margin: 0 0 12px; font-size: 18px; }
+h3 { margin: 0; font-size: 15px; word-break: break-all; }
+a { color: var(--accent); }
+.lead, footer { color: var(--muted); }
+footer { font-size: 13px; margin-top: 24px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 16px;
+}
+
+button, .button {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-block;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.link { border: none; background: none; color: var(--accent); padding: 0; }
+.buttons, .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.actions { margin-top: 12px; }
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+.dropzone p { margin: 0 0 8px; color: var(--muted); }
+.dropzone .buttons { justify-content: center; }
+.dropzone.over { border-color: var(--accent); }
+
+.queue { margin: 12px 0 4px; padding-left: 20px; max-height: 180px; overflow: auto; }
+.queue .size { color: var(--muted); font-size: 13px; }
+
+.options fieldset { border: none; margin: 0 0 8px; padding: 0; display: flex; gap: 16px; flex-wrap: wrap; }
+.options legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
+.options .numbers input, .options select { width: 9em; font: inherit; margin-left: 4px; }
+.options details { margin-bottom: 8px; }
+.options summary { cursor: pointer; color: var(--muted); margin-bottom: 6px; }
+
+.warning { background: var(--warning-bg); padding: 8px 12px; border-radius: 6px; }
+.overall { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+progress { width: 260px; max-width: 100%; height: 10px; accent-color: var(--accent); }
+
+.results { display: grid; gap: 12px; margin-top: 12px; }
+.result { border-top: 1px solid var(--border); padding-top: 12px; }
+.result header { display: flex; justify-content: space-between; gap: 12px; }
+.result .status { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.result[data-status="done"] .status { color: var(--accent); }
+.result[data-status="error"] .status, .result .error { color: var(--error); }
+.result .meta { margin: 2px 0 6px; color: var(--muted); font-size: 13px; }
+.file-progress { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+.result .error { margin: 6px 0 0; }
+
+.previews { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.preview { margin: 0; font-size: 12px; color: var(--muted); }
+.preview canvas { display: block; image-rendering: pixelated; }
+.preview.horizontal { flex: 1 1 100%; }
+.preview.horizontal canvas { width: 100%; height: 72px; border-radius: 3px; }
+.preview.circular canvas {
+  width: 180px;
+  height: 180px;
+  image-rendering: auto;
+  background: repeating-conic-gradient(var(--checker) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px;
+  border-radius: 4px;
+}
+.preview figcaption { margin-top: 4px; word-break: break-all; }
+
+/* The decoding <video> must be in the DOM for frames to be presented, but it does not need to be seen */
+video.decoder {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 64px;
+  height: 36px;
+  opacity: 0.01;
+  pointer-events: none;
+}

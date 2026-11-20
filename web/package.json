@@ -1,0 +1,10 @@
+{
+  "name": "movie-barcodes-web",
+  "private": true,
+  "type": "module",
+  "description": "In-browser movie barcodes: static files, no build step, no dependencies.",
+  "scripts": {
+    "test": "node --test",
+    "smoke": "node tests/browser-smoke.js"
+  }
+}

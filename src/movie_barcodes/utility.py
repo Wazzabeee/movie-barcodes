@@ -184,6 +184,7 @@ def get_output_path(
     workers: Optional[int] = None,
     destination_path: Optional[str] = None,
     output_name: Optional[str] = None,
+    method_suffix: bool = False,
 ) -> str:
     """
     Path where the command line saves a barcode image.
@@ -197,13 +198,20 @@ def get_output_path(
     :param Optional[int] workers: The number of workers requested by the user, or None if not specified.
     :param Optional[str] destination_path: The output path chosen by the user, if any.
     :param Optional[str] output_name: The output file name (without extension) chosen by the user, if any.
+    :param bool method_suffix: Append the method to destination_path or output_name (before the extension), so that
+        the images of several methods saved in one run don't overwrite each other. The generated name always
+        contains the method.
     :return: destination_path if given, else barcodes/<output_name>.png, else
-        barcodes/<base_name>_<method>_<barcode_type>[_workers_<workers>].png
+        barcodes/<base_name>_<method>_<barcode_type>[_workers_<workers>].png; with method_suffix,
+        <destination_path stem>_<method><extension> or barcodes/<output_name>_<method>.png
     """
     if destination_path:
+        if method_suffix:
+            root, extension = path.splitext(destination_path)
+            return f"{root}_{method}{extension}"
         return destination_path
     if output_name:
-        destination_name = output_name + ".png"
+        destination_name = (f"{output_name}_{method}" if method_suffix else output_name) + ".png"
     else:
         filename_parts = [base_name, method, barcode_type]
         if workers:

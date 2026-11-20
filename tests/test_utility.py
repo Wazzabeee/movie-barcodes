@@ -378,6 +378,28 @@ class TestUtility(unittest.TestCase):
             "d/out.png",
         )
 
+    def test_get_output_path_with_method_suffix(self) -> None:
+        """
+        With several methods (--all_methods), a user-chosen name or path gets the method appended, so the images
+        don't overwrite each other; the generated name already contains the method.
+        """
+        self.assertEqual(
+            utility.get_output_path("movie", "kmeans", "horizontal", output_name="x", method_suffix=True),
+            os.path.join("barcodes", "x_kmeans.png"),
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "avg", "horizontal", destination_path="d/out.png", method_suffix=True),
+            os.path.join("d", "out_avg.png"),
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "avg_linear", "horizontal", destination_path="out", method_suffix=True),
+            "out_avg_linear",
+        )
+        self.assertEqual(
+            utility.get_output_path("movie", "avg", "circular", method_suffix=True),
+            os.path.join("barcodes", "movie_avg_circular.png"),
+        )
+
     def test_save_barcode_image_with_relative_destination_path(self) -> None:
         """
         A relative destination_path is resolved relative to the current working directory, and missing

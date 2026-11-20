@@ -58,6 +58,8 @@ def generate_and_save_barcodes(args: argparse.Namespace) -> None:
             workers=workers,
             destination_path=args.destination_path,
             output_name=args.output_name,
+            # With several methods, -n / -d would give every image the same path: append the method
+            method_suffix=len(barcodes) > 1,
         )
         save_barcode_image(image, destination_path)
 
@@ -96,7 +98,8 @@ def main() -> None:
         "--destination_path",
         type=str,
         nargs="?",
-        help="Path to save the output image. If not provided, the image will be saved in a default location.",
+        help="Path to save the output image. If not provided, the image will be saved in a default location. With "
+        "--all_methods, the method is appended to the file name (e.g. out_avg.png, out_kmeans.png).",
         default=None,
     )
     parser.add_argument(
@@ -140,7 +143,8 @@ def main() -> None:
         "--output_name",
         type=str,
         nargs="?",
-        help="Custom name for the output barcode image. If not provided, a name will be automatically generated.",
+        help="Custom name for the output barcode image. If not provided, a name will be automatically generated. "
+        "With --all_methods, the method is appended (e.g. NAME_avg.png, NAME_kmeans.png).",
         default=None,
     )
     parser.add_argument(

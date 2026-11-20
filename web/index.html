@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Movie Barcodes</title>
+  <meta name="description" content="Turn a movie into a color barcode, in your browser. Nothing is uploaded.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Movie Barcodes</h1>
+    <p class="lead">
+      Compress every frame of a movie into a single color barcode.
+      <strong>Your movies never leave your computer:</strong> they are decoded by your browser, nothing is uploaded.
+    </p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="inputs-title">
+      <h2 id="inputs-title">1. Movies</h2>
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <p>Drop movies or a folder here, or</p>
+        <div class="buttons">
+          <label class="button">Choose files
+            <input id="file" type="file" accept="video/*,.mkv,.mov,.m4v" multiple hidden>
+          </label>
+          <button id="pick-folder" type="button">Choose a folder</button>
+          <label class="button" id="folder-fallback">Choose a folder
+            <input id="folder" type="file" webkitdirectory multiple hidden>
+          </label>
+        </div>
+      </div>
+      <ul id="queue" class="queue"></ul>
+      <button id="clear" type="button" class="link" hidden>Clear the list</button>
+    </section>
+
+    <section class="panel" aria-labelledby="options-title">
+      <h2 id="options-title">2. Options</h2>
+      <form id="options" class="options">
+        <fieldset>
+          <legend>Color method</legend>
+          <label><input type="checkbox" name="method" value="avg" checked> Average</label>
+          <label><input type="checkbox" name="method" value="smoothed"> Smoothed</label>
+          <label title="Averages in linear light: brighter, perceptually correct mix on high-contrast scenes">
+            <input type="checkbox" name="method" value="linear"> Linear light average</label>
+        </fieldset>
+        <fieldset>
+          <legend>Barcode</legend>
+          <label><input type="checkbox" name="type" value="horizontal" checked> Horizontal</label>
+          <label><input type="checkbox" name="type" value="circular" checked> Circular</label>
+        </fieldset>
+        <fieldset class="numbers">
+          <legend>Size</legend>
+          <label>Samples <input name="samples" type="number" min="1" max="16384" placeholder="auto"
+            title="Number of frames sampled: the width of horizontal barcodes, the number of rings of circular ones. Default: min(video width, frame count)"></label>
+          <label>Height <input name="height" type="number" min="1" max="16384" placeholder="video height"
+            title="Height of horizontal barcodes. Default: the video height"></label>
+          <label>Diameter <input name="diameter" type="number" min="16" max="8192" placeholder="video width"
+            title="Size of circular barcodes. Default: the video width"></label>
+        </fieldset>
+        <details>
+          <summary>Advanced</summary>
+          <fieldset class="numbers">
+            <label>Analysis width
+              <select name="analysisWidth" title="Frames are downscaled to this width before averaging. Larger is slower.">
+                <option value="256" selected>256 px (fast)</option>
+                <option value="640">640 px</option>
+                <option value="0">native</option>
+              </select>
+            </label>
+            <label>Frame rate <input name="fps" type="number" min="1" max="240" step="any" placeholder="auto"
+              title="Frames per second. Browsers do not expose it: it is measured while playing a few frames"></label>
+          </fieldset>
+        </details>
+        <label id="save-to-folder-row" hidden>
+          <input type="checkbox" name="saveToFolder" checked>
+          Save the PNGs into a <code>barcodes</code> folder inside the chosen folder (asks for write access)
+        </label>
+      </form>
+      <div class="actions">
+        <button id="start" type="button" class="primary" disabled>Generate barcodes</button>
+        <button id="cancel" type="button" hidden>Cancel</button>
+      </div>
+    </section>
+
+    <section class="panel" id="progress-panel" hidden aria-live="polite">
+      <h2>3. Barcodes</h2>
+      <p id="visibility-warning" class="warning" hidden>
+        Waiting for frames: keep this tab visible and the window uncovered, browsers stop decoding video in background tabs.
+      </p>
+      <div class="overall">
+        <progress id="overall-progress" max="1" value="0"></progress>
+        <span id="overall-text"></span>
+      </div>
+      <div class="actions">
+        <button id="download-all" type="button" hidden>Download all</button>
+      </div>
+      <div id="results" class="results"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Works best in Chrome or Edge (desktop). Keep the tab visible while it runs.
+      Colors match the <a href="https://github.com/Wazzabeee/movie-barcodes">movie-barcodes</a> Python package within
+      a few levels per channel. The browser has to support the movie's codec: H.264 and HEVC in MP4 or MKV work in
+      Chrome on macOS; Safari does not open MKV files.
+    </p>
+  </footer>
+
+  <template id="result-template">
+    <article class="result">
+      <header>
+        <h3 class="name"></h3>
+        <span class="status"></span>
+      </header>
+      <p class="meta"></p>
+      <div class="file-progress"><progress max="1" value="0"></progress><span class="eta"></span></div>
+      <p class="error" hidden></p>
+      <div class="previews"></div>
+    </article>
+  </template>
+</body>
+</html>

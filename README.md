@@ -207,6 +207,19 @@ if __name__ == "__main__":
         print("Cancelled")
 ```
 
+# Web app
+Barcodes can also be generated in the browser, without installing anything: https://wazzabeee.github.io/movie-barcodes/
+
+Pick movies, drop them, or choose a whole folder: **the movies never leave your computer**. They are decoded by the browser from the local files (nothing is uploaded, multi-GB files are fine), and the PNGs are downloaded, or written into a `barcodes` folder inside the chosen folder (Chrome and Edge). It offers the `avg`, `smoothed` and linear light (`--linear`) methods, horizontal and circular barcodes, with the same file names as the command line.
+
+Limits:
+- Chrome or Edge on desktop recommended: the browser must support the movie's codec (H.264 and HEVC in MP4 or MKV work in Chrome on macOS; Safari does not open MKV files).
+- Keep the tab visible while it runs: browsers stop decoding video in background tabs.
+- Colors are within a few levels (out of 255) of the Python package, which decodes frames with OpenCV.
+- About 60-80 ms per sampled frame: a 1920-sample barcode takes 2-3 minutes per movie.
+
+To run it locally: `python -m http.server -d web 8000`, then open http://localhost:8000. See [web/README.md](web/README.md).
+
 # Development Setup
 ```bash
 # Clone this repository

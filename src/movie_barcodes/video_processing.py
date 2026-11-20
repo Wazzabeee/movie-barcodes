@@ -2,6 +2,7 @@ import functools
 import logging
 import multiprocessing
 import queue
+import threading
 from contextlib import closing
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
@@ -22,6 +23,30 @@ CROP_BRIGHTNESS_PERCENTILE = 98
 CROP_MIN_RATIO = 0.3
 
 Rect = Tuple[int, int, int, int]
+
+# Progress callback: called with (frames processed so far, frames to process) in the calling process and thread
+ProgressCallback = Callable[[int, int], None]
+
+
+class Cancelled(Exception):
+    """
+    Raised when an extraction is stopped through its ``cancel`` event. Worker processes are terminated first.
+    """
+
+    def __init__(self, message: str = "Extraction cancelled") -> None:
+        super().__init__(message)
+
+
+def check_cancel(cancel: Optional[threading.Event]) -> None:
+    """
+    Raise Cancelled if the cancel event is set.
+
+    :param Optional[threading.Event] cancel: The event set to request cancellation, or None.
+    :raises Cancelled: If cancellation was requested.
+    """
+    if cancel is not None and cancel.is_set():
+        raise Cancelled()
+
 
 # A single color extractor, or several extractors keyed by method name to run on the same decoded frames
 ColorExtractors = Union[Callable, Dict[str, Callable]]
@@ -282,6 +307,8 @@ def extract_colors(
     show_progress: bool = True,
     progress_queue: Optional[Any] = None,
     crop_rect: Optional[Rect] = None,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> Union[List, Dict[str, List]]:
     """
     Extracts dominant colors from frames sampled over a range of a video file.
@@ -296,20 +323,29 @@ def extract_colors(
     :param Optional[Any] progress_queue: If given, put 1 on this queue for each processed frame
         (used by parallel_extract_colors to drive a single global progress bar).
     :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep in each frame, or None for the full frame.
+    :param Optional[ProgressCallback] on_progress: Called with (frames processed, frames to sample) after each frame.
+    :param Optional[threading.Event] cancel: Checked before each frame: once set, Cancelled is raised.
     :return: List of dominant colors from the sampled frames, or {method_name: list of colors}
         when a dict of extractors is given.
+    :raises Cancelled: If cancel is set.
     """
     extractors = color_extractor if isinstance(color_extractor, dict) else {None: color_extractor}
     colors: Dict = {name: [] for name in extractors}
 
     frames = iter_sampled_frames(video_path, start_frame, end_frame, target_frames, crop_rect)
     total = _sample_count(start_frame, end_frame, target_frames)
+    check_cancel(cancel)
     with closing(frames):
-        for _, frame in tqdm(frames, total=total, desc="Processing frames", disable=not show_progress):
+        for done, (_, frame) in enumerate(
+            tqdm(frames, total=total, desc="Processing frames", disable=not show_progress), start=1
+        ):
+            check_cancel(cancel)
             for name, extractor in extractors.items():
                 colors[name].append(extractor(frame))
             if progress_queue is not None:
                 progress_queue.put(1)
+            if on_progress is not None:
+                on_progress(done, total)
 
     return colors if isinstance(color_extractor, dict) else colors[None]
 
@@ -346,6 +382,8 @@ def parallel_extract_colors(
     workers: int,
     target_frames: Optional[int] = None,
     crop_rect: Optional[Rect] = None,
+    on_progress: Optional[ProgressCallback] = None,
+    cancel: Optional[threading.Event] = None,
 ) -> Union[List, Dict[str, List]]:
     """
     Extract dominant colors from frames in a video file using parallel processing.
@@ -359,8 +397,13 @@ def parallel_extract_colors(
     :param int workers: Number of parallel workers.
     :param Optional[int] target_frames: The total number of frames to sample.
     :param Optional[Rect] crop_rect: (x, y, w, h) of the area to keep in each frame, or None for the full frame.
+    :param Optional[ProgressCallback] on_progress: Called in this process with (frames processed, frames to sample)
+        as the workers report frames.
+    :param Optional[threading.Event] cancel: Checked while waiting for the workers (every 0.1 s at most): once set,
+        the workers are terminated and Cancelled is raised. Starting the worker processes is not interruptible.
     :return: List of dominant colors for the frames in the video, or {method_name: list of colors}
         when a dict of extractors is given.
+    :raises Cancelled: If cancel is set.
     """
     if target_frames is None:
         target_frames = frame_count
@@ -369,6 +412,7 @@ def parallel_extract_colors(
     task_args = [(video_path, start, end, color_extractor, samples) for start, end, samples in tasks]
     total_samples = sum(_sample_count(start, end, samples) for start, end, samples in tasks)
 
+    check_cancel(cancel)
     # Workers don't draw their own bar (N bars on one terminal garble the output): they report each
     # processed frame to a shared queue, and the parent process draws a single global bar.
     with MP_CONTEXT.Manager() as manager, MP_CONTEXT.Pool(max(1, len(tasks))) as pool:
@@ -378,17 +422,31 @@ def parallel_extract_colors(
         )
         async_result = pool.starmap_async(worker, task_args)
         with tqdm(total=total_samples, desc="Processing frames") as progress_bar:
+            done = 0
+
+            def advance(frames: int) -> None:
+                nonlocal done
+                done += frames
+                progress_bar.update(frames)
+                if on_progress is not None and frames:
+                    on_progress(done, total_samples)
+
             # Poll ready() rather than blocking on the queue, so a worker that raises can't hang us
             while not async_result.ready():
+                if cancel is not None and cancel.is_set():
+                    # Kill the workers now (leaving the with block would too, but only after the raise below)
+                    pool.terminate()
+                    pool.join()
+                    raise Cancelled()
                 try:
-                    progress_bar.update(progress_queue.get(timeout=0.1))
+                    advance(progress_queue.get(timeout=0.1))
                 except queue.Empty:
                     pass
             while not progress_queue.empty():
-                progress_bar.update(progress_queue.get())
+                advance(progress_queue.get())
             results = async_result.get()  # Re-raises a worker's exception
             # Workers may return fewer frames than requested (end of video): still end at 100%
-            progress_bar.update(total_samples - progress_bar.n)
+            advance(total_samples - done)
 
     # Concatenate results from all workers, in frame order
     if isinstance(color_extractor, dict):

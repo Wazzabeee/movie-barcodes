@@ -27,6 +27,7 @@ Designed with performance in mind, the application supports both sequential and 
 - Supports `.mp4`, `.mkv`, `.webm`, `.mov`, `.avi`, `.m4v` and other common video files
 - Batch processing: whole folders or lists of movies in one run, with a summary, resumable with `--skip-existing`
 - Colors cache: save the extracted colors once, render other barcodes later without decoding the movie again
+- Desktop app (optional): pick movies and folders, follow the progress, see the barcodes as they are made
 - Multiprocessing support for parallel processing.
 - Customizable color extraction function (Average or K-means).
 - Progress tracking and estimated time remaining.
@@ -123,6 +124,29 @@ $ movie-barcodes -i barcodes/movie_colors.npz -m kmeans --height 1080
 
 The file holds one array per method (`colors_<method>`), the indices of the sampled frames (`frame_indices`) and a JSON `metadata` string: format version, video file name, frame count, size and rate, number of sampled frames, crop rectangle (`--crop-borders`) and `--linear` flag. It can be read with `numpy.load(path)` (no pickled objects). Rendering from it gives exactly the same images as rendering right after decoding. The number of sampled frames is fixed when decoding: `--width`, `-w`, `--crop-borders` and `--linear` don't apply to colors files.
 
+# Desktop app
+A small local app does the same as the command line from a window: add movies or whole folders, choose the options, follow the progress of each movie and see the barcodes as they are generated. Movies are read where they are, on your computer: nothing is uploaded or copied, which suits full-length movies of several GB.
+
+![Desktop app](https://raw.githubusercontent.com/Wazzabeee/movie-barcodes/main/examples/desktop_app.png)
+
+```bash
+# Install the package with the app's extra dependencies (NiceGUI and pywebview)
+$ pip install "movie-barcodes[ui]"
+
+# Open the app in its own window
+$ movie-barcodes-ui
+
+# Or in a tab of your browser (served on 127.0.0.1 only: paste the path of a movie or folder to add it)
+$ movie-barcodes-ui --browser
+```
+
+- **Movies**: *Add files* and *Add folder* open the system's file dialogs; *Include subfolders* also adds the movies of subfolders. Remove a movie from the list with its ✕.
+- **Options**: the same as the command line: methods (several at once), horizontal and/or circular barcodes, width, height, workers, crop black borders, linear light, skip existing barcodes, save colors (`.npz`, see [Colors cache](#colors-cache)), output folder (default `~/Pictures/movie-barcodes`).
+- **Generate**: movies are processed one after another, each decoded once for all methods and types. Progress is shown for the whole list and the current movie; a movie that fails is reported and the next ones are processed. *Cancel* stops the movie being decoded and the rest of the list; barcodes already saved are kept.
+- **Results**: a preview of every barcode, with buttons to open it or show it in its folder. Files are named like `movie-barcodes --output-dir` names them (`<movie>_<method>_<type>.png`): with the same output folder (and no `-w` on the command line, which adds `_workers_<n>` to the names), *skip existing* and `--skip-existing` skip what the other one already made.
+
+On Linux, the native window needs a GUI backend for pywebview (GTK or Qt, e.g. `pip install "pywebview[qt]"`); `--browser` works without it.
+
 # Python API
 The barcodes can also be generated from Python (a notebook, another application...). The functions return PIL images and write nothing to disk: RGB images for horizontal barcodes, RGBA images with a transparent background for circular barcodes.
 
@@ -167,6 +191,22 @@ if __name__ == "__main__":
     tall = render_barcode(colors, "avg", "horizontal", height=1080)
 ```
 
+Long calls can report their progress and be cancelled, e.g. from a background thread of an application: `create_barcode`, `create_barcodes`, `extract_movie_colors` and `iter_barcodes` accept `on_progress`, called with `(frames done, frames to sample)` as frames are decoded, and `cancel`, a `threading.Event`. Once the event is set, decoding stops, the worker processes are terminated and `movie_barcodes.Cancelled` is raised (`iter_barcodes` raises it instead of reporting a failed movie).
+
+```python
+import threading
+from movie_barcodes import Cancelled, create_barcode
+
+if __name__ == "__main__":
+    cancel = threading.Event()  # call cancel.set() from another thread to stop
+    try:
+        image = create_barcode(
+            "path/to/video.mp4", on_progress=lambda done, total: print(f"{done}/{total}"), cancel=cancel
+        )
+    except Cancelled:
+        print("Cancelled")
+```
+
 # Development Setup
 ```bash
 # Clone this repository
@@ -190,6 +230,10 @@ $ uv run pytest tests/
 
 # Run package locally
 $ uv run python -m movie_barcodes -i "path_to_video.mp4"
+
+# Work on the desktop app: install its extra dependencies, then run it (its tests are skipped without them)
+$ uv sync --extra ui
+$ uv run movie-barcodes-ui
 ```
 
 # Todo

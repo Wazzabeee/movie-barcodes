@@ -1,6 +1,7 @@
 import logging
+import os
 from os import path, access, W_OK, makedirs
-from typing import Callable, Optional
+from typing import Callable, Iterable, List, Optional
 import cv2
 import numpy as np
 from PIL import Image
@@ -18,6 +19,25 @@ from .color_extraction import (
 
 # Methods that average colors, and can therefore average them in linear light (--linear)
 LINEAR_METHODS = ("avg", "smoothed")
+
+# Video file extensions accepted as input, and looked for when an input is a directory
+VIDEO_EXTENSIONS = (
+    ".mp4",
+    ".m4v",
+    ".mkv",
+    ".webm",
+    ".mov",
+    ".avi",
+    ".wmv",
+    ".flv",
+    ".mpg",
+    ".mpeg",
+    ".ts",
+    ".m2ts",
+    ".mts",
+    ".ogv",
+    ".3gp",
+)
 
 
 def validate_inputs(
@@ -44,9 +64,8 @@ def validate_inputs(
     if not path.exists(video_path):
         raise FileNotFoundError(f"The specified input video file '{video_path}' does not exist.")
 
-    valid_extensions = [".mp4", ".webm", ".mkv"]
-    if path.splitext(video_path)[1].lower() not in valid_extensions:
-        raise ValueError("The specified video file must have a valid video extension (e.g., .mp4, .webm, .mkv).")
+    if path.splitext(video_path)[1].lower() not in VIDEO_EXTENSIONS:
+        raise ValueError(f"The specified video file must have a valid video extension ({', '.join(VIDEO_EXTENSIONS)}).")
 
     if width is not None:
         if width <= 0:
@@ -185,6 +204,8 @@ def get_output_path(
     destination_path: Optional[str] = None,
     output_name: Optional[str] = None,
     method_suffix: bool = False,
+    type_suffix: bool = False,
+    output_dir: str = "barcodes",
 ) -> str:
     """
     Path where the command line saves a barcode image.
@@ -201,23 +222,27 @@ def get_output_path(
     :param bool method_suffix: Append the method to destination_path or output_name (before the extension), so that
         the images of several methods saved in one run don't overwrite each other. The generated name always
         contains the method.
-    :return: destination_path if given, else barcodes/<output_name>.png, else
-        barcodes/<base_name>_<method>_<barcode_type>[_workers_<workers>].png; with method_suffix,
-        <destination_path stem>_<method><extension> or barcodes/<output_name>_<method>.png
+    :param bool type_suffix: Same for the barcode type, when several types are saved in one run.
+    :param str output_dir: Directory of the generated and output_name paths. Default is ./barcodes.
+    :return: destination_path if given, else <output_dir>/<output_name>.png, else
+        <output_dir>/<base_name>_<method>_<barcode_type>[_workers_<workers>].png; with method_suffix and/or
+        type_suffix, <destination_path stem>[_<method>][_<barcode_type>]<extension> or
+        <output_dir>/<output_name>[_<method>][_<barcode_type>].png
     """
+    suffix = "".join(f"_{part}" for part, enabled in ((method, method_suffix), (barcode_type, type_suffix)) if enabled)
     if destination_path:
-        if method_suffix:
+        if suffix:
             root, extension = path.splitext(destination_path)
-            return f"{root}_{method}{extension}"
+            return f"{root}{suffix}{extension}"
         return destination_path
     if output_name:
-        destination_name = (f"{output_name}_{method}" if method_suffix else output_name) + ".png"
+        destination_name = output_name + suffix + ".png"
     else:
         filename_parts = [base_name, method, barcode_type]
         if workers:
             filename_parts.append(f"workers_{str(workers)}")
         destination_name = "_".join(filename_parts) + ".png"
-    return path.join("barcodes", destination_name)
+    return path.join(output_dir, destination_name)
 
 
 def save_barcode_image(image: Image.Image, destination_path: str) -> None:
@@ -241,3 +266,55 @@ def ensure_directory(directory_name: str) -> None:
     :param str directory_name: The name of the directory to ensure.
     """
     makedirs(directory_name, exist_ok=True)
+
+
+def read_path_list(list_file: str) -> List[str]:
+    """
+    Read a list of input paths: one per line, blank lines and lines starting with # are ignored.
+
+    Relative paths are resolved relative to the directory of the list file.
+
+    :param str list_file: Path of the list file (UTF-8 text).
+    :return: The paths, in order.
+    :raises OSError: If the file cannot be read.
+    """
+    base_dir = path.dirname(list_file)
+    paths = []
+    with open(list_file, encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            paths.append(path.normpath(path.join(base_dir, path.expanduser(line))))
+    return paths
+
+
+def find_videos(paths: Iterable[str], recursive: bool = False) -> List[str]:
+    """
+    Expand input paths into the list of files to process.
+
+    Directories are replaced by the video files they contain (by extension, see VIDEO_EXTENSIONS), sorted by name,
+    including their subdirectories with recursive. Other paths are kept as given, whatever their extension or even
+    if they don't exist, so that errors are reported for them. Duplicates are removed.
+
+    :param paths: Files and/or directories.
+    :param bool recursive: Also look for videos in the subdirectories of directories.
+    :return: The files, in order.
+    """
+    files: List[str] = []
+    for input_path in paths:
+        input_path = os.fspath(input_path)
+        if not path.isdir(input_path):
+            files.append(input_path)
+            continue
+        found = []
+        for directory, subdirectories, file_names in os.walk(input_path):
+            subdirectories[:] = sorted(d for d in subdirectories if not d.startswith(".")) if recursive else []
+            for file_name in file_names:
+                if not file_name.startswith(".") and path.splitext(file_name)[1].lower() in VIDEO_EXTENSIONS:
+                    found.append(path.join(directory, file_name))
+        files.extend(sorted(found, key=lambda file_path: (path.dirname(file_path), file_path.lower())))
+    unique = {}
+    for file_path in files:
+        unique.setdefault(path.normcase(path.abspath(file_path)), file_path)
+    return list(unique.values())

@@ -123,7 +123,7 @@ class TestCreateBarcode(unittest.TestCase):
 
     def test_invalid_extension_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            video_path = os.path.join(tmp, "sample.avi")
+            video_path = os.path.join(tmp, "sample.txt")
             shutil.copy(VIDEO_PATH, video_path)
             with self.assertRaises(ValueError):
                 api.create_barcode(video_path)

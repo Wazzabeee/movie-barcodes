@@ -24,7 +24,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: Install uv and Python ${{ matrix.python-version }}
-      uses: astral-sh/setup-uv@v10.3.3
+      uses: astral-sh/setup-uv@v10.4.0
       with:
         # Sets UV_PYTHON, which overrides the 3.12 pin in .python-version
         python-version: ${{ matrix.python-version }}
@@ -60,7 +60,7 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install uv
-      uses: astral-sh/setup-uv@v10.3.3
+      uses: astral-sh/setup-uv@v10.4.0
     - name: Run pre-commit (Ruff and hooks)
       run: |
         uvx pre-commit run --all-files --show-diff-on-failure
@@ -123,7 +123,7 @@ jobs:
       - name: Check that HEAD is tagged
         run: git describe --tags --exact-match HEAD
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__
